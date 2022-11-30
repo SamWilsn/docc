@@ -9,3 +9,26 @@ line_length = 79
 
 [tool.black]
 line-length = 79
+
+[tool.docc]
+discovery = [
+    "docc.mypy.discover",
+]
+
+build = [
+    "docc.mypy.build",
+]
+
+transform = [
+    "docc.mypy.transform",
+    "docc.html",
+]
+
+[tool.docc.plugins."docc.mypy.discover"]
+paths = [
+    "src",
+]
+
+[tool.docc.output]
+path = "docs"
+extension = ".html"

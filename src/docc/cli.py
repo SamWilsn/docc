@@ -17,9 +17,57 @@
 Command line interface to docc.
 """
 
+import logging
+from pathlib import Path
+from typing import Dict, Set
+
+from . import build, discover, transform
+from .document import Document
+from .settings import Settings
+from .source import Source
+
 
 def main() -> None:
     """
     Entry-point for the command line tool.
     """
-    raise NotImplementedError()
+    settings = Settings(Path.cwd())
+
+    discover_plugins = discover.load(settings)
+    build_plugins = build.load(settings)
+    transform_plugins = transform.load(settings)
+
+    known: Set[Source] = set()
+
+    for name, instance in discover_plugins:
+        found = instance.discover(frozenset(known))
+        for item in found:
+            if item.relative_path is None:
+                logging.info("[%s] found source without a path", name)
+            else:
+                logging.info("[%s] found source: %s", name, item.relative_path)
+            known.add(item)
+
+    documents: Dict[Source, Document] = {}
+    for name, build_plugin in build_plugins:
+        before = len(documents)
+        build_plugin.build(known, documents)
+        after = len(documents)
+        logging.info("[%s] built %s documents", name, after - before)
+
+    for document in documents.values():
+        for _name, transform_plugin in transform_plugins:
+            transform_plugin.transform(document)
+
+    for source, document in documents.items():
+        output_path = settings.output.path / source.output_path
+        output_path = Path(
+            output_path.with_suffix(
+                output_path.suffix + settings.output.extension
+            )
+        )
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_path, "w") as destination:
+            document.output(destination)
