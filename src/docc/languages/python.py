@@ -106,9 +106,28 @@ class Function(PythonNode):
     decorators: Sequence[Node] = dataclasses.field(default_factory=list)
     name: Node = dataclasses.field(default_factory=BlankNode)
     arguments: Sequence[Node] = dataclasses.field(default_factory=list)
-    return_type_annotation: Node = dataclasses.field(default_factory=BlankNode)
+    return_type: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
     body: Node = dataclasses.field(default_factory=BlankNode)
+
+
+@dataclass(repr=False)
+class Type(PythonNode):
+    """
+    A type, usually used in a PEP 484 annotation.
+    """
+
+    name: Node = dataclasses.field(default_factory=BlankNode)
+    generics: Node = dataclasses.field(default_factory=BlankNode)
+
+
+@dataclass(repr=False)
+class Generics(PythonNode):
+    """
+    The square brackets and list of types in a type annotation.
+    """
+
+    arguments: Sequence[Node] = dataclasses.field(default_factory=list)
 
 
 @dataclass(repr=False)
@@ -116,6 +135,9 @@ class Argument(PythonNode):
     """
     An argument descriptor in a function definition.
     """
+
+    name: Node = dataclasses.field(default_factory=BlankNode)
+    type_annotation: Node = dataclasses.field(default_factory=BlankNode)
 
 
 @dataclass(repr=False)

@@ -13,7 +13,10 @@
  #
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
- #}<pre>{% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
+-#}
+<section>
+    <h3>{{ node.name|html }}</h3>
+    <pre>{% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
 class {{ node.name|html }}{%- if node.bases -%}
     (
     {%- for base in node.bases -%}
@@ -23,3 +26,4 @@ class {{ node.name|html }}{%- if node.bases -%}
     )
     {%- endif %}:
 TODO</pre>
+</section>

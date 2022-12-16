@@ -22,6 +22,8 @@ import html.parser
 import sys
 import xml.etree.ElementTree as ET
 from io import StringIO, TextIOBase
+from os.path import commonpath
+from pathlib import PurePath
 from typing import (
     Any,
     Callable,
@@ -34,18 +36,16 @@ from typing import (
     Type,
     Union,
 )
+from urllib.parse import urlunsplit
+from urllib.request import pathname2url
 
 import markupsafe
-from jinja2 import (
-    Environment,
-    PackageLoader,
-    pass_eval_context,
-    select_autoescape,
-)
-from jinja2.nodes import EvalContext
+from jinja2 import Environment, PackageLoader, pass_context, select_autoescape
+from jinja2.runtime import Context
 
 from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
 from docc.languages import python
+from docc.plugins import references
 from docc.plugins.loader import PluginError
 from docc.settings import PluginSettings
 from docc.transform import Transform
@@ -96,10 +96,12 @@ class HTMLTag(Node):
     _children: List[Node]
 
     def __init__(
-        self, tag_name: str, attributes: Dict[str, Optional[str]]
+        self,
+        tag_name: str,
+        attributes: Optional[Dict[str, Optional[str]]] = None,
     ) -> None:
         self.tag_name = tag_name
-        self.attributes = attributes
+        self.attributes = {} if attributes is None else attributes
         self._children = []
 
     @property
@@ -152,7 +154,7 @@ class HTMLRoot(OutputNode):
         self._children = []
 
     @property
-    def children(self) -> Iterable[Node]:
+    def children(self) -> Iterable[Union[HTMLTag, TextNode]]:
         """
         Child nodes belonging to this node.
         """
@@ -245,14 +247,16 @@ class HTMLVisitor(Visitor):
     renderers: Dict[Type, Callable]
     root: HTMLRoot
     stack: List[Union[HTMLRoot, HTMLTag, TextNode, BlankNode]]
+    document: Document
 
-    def __init__(self) -> None:
+    def __init__(self, document: Document) -> None:
         # Discover render functions.
         found = entry_points(group="docc.plugins.html")
         self.entry_points = {entry.name: entry for entry in found}
         self.root = HTMLRoot()
         self.stack = [self.root]
         self.renderers = {}
+        self.document = document
 
     def _renderer(self, type_: Type) -> Callable:
         try:
@@ -278,7 +282,7 @@ class HTMLVisitor(Visitor):
         visited.
         """
         renderer = self._renderer(node.__class__)
-        result = renderer(node)
+        result = renderer(self.document, node)
 
         if not isinstance(result, tuple) or len(result) != 2:
             raise PluginError(
@@ -335,7 +339,7 @@ class HTML(Transform):
         """
         Apply the transformation to the given document.
         """
-        visitor = HTMLVisitor()
+        visitor = HTMLVisitor(document)
         document.root.visit(visitor)
         assert visitor.root is not None
         document.root = visitor.root
@@ -386,12 +390,14 @@ class _HTMLParser(html.parser.HTMLParser):
         raise NotImplementedError("unknown HTML declaration")
 
 
-@pass_eval_context
+@pass_context
 def _html_filter(
-    context: EvalContext, value: Any
+    context: Context, value: Any
 ) -> Union[markupsafe.Markup, str]:
+    document = context["document"]
+    assert isinstance(document, Document)
     assert isinstance(value, Node)
-    visitor = HTMLVisitor()
+    visitor = HTMLVisitor(document)
     value.visit(visitor)
 
     children = []
@@ -406,12 +412,14 @@ def _html_filter(
         children.append(markup)
 
     rendered = "".join(children)
-    return markupsafe.Markup(rendered) if context.autoescape else rendered
+    eval_context = context.eval_ctx
+    return markupsafe.Markup(rendered) if eval_context.autoescape else rendered
 
 
 def _render_template(
-    template_name: str, node: Node
+    document: Any, template_name: str, node: Node
 ) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    assert isinstance(document, Document)
     env = Environment(
         loader=PackageLoader("docc.plugins.html"),
         autoescape=select_autoescape(),
@@ -419,50 +427,181 @@ def _render_template(
     env.filters["html"] = _html_filter
     template = env.get_template(template_name)
     parser = _HTMLParser()
-    parser.feed(template.render(node=node))
+    parser.feed(template.render(document=document, node=node))
     return (Visit.SkipChildren, parser.root._children)
 
 
 def python_module(
-    module: python.Module,
+    document: Any,
+    module: Any,
 ) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
     """
     Render a python Module as HTML.
     """
-    return _render_template("python/module.html", module)
+    assert isinstance(module, python.Module)
+    return _render_template(document, "python/module.html", module)
 
 
 def python_class(
-    class_: python.Class,
+    document: Any,
+    class_: Any,
 ) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
     """
     Render a python Class as HTML.
     """
-    return _render_template("python/class.html", class_)
+    assert isinstance(class_, python.Class)
+    return _render_template(document, "python/class.html", class_)
 
 
 def python_attribute(
-    attribute: python.Attribute,
+    document: Any,
+    attribute: Any,
 ) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
     """
     Render a python assignment as HTML.
     """
-    return _render_template("python/attribute.html", attribute)
+    assert isinstance(attribute, python.Attribute)
+    return _render_template(document, "python/attribute.html", attribute)
 
 
 def python_function(
-    function: python.Function,
+    document: Any,
+    function: Any,
 ) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
     """
     Render a python Function as HTML.
     """
-    return _render_template("python/function.html", function)
+    assert isinstance(function, python.Function)
+    return _render_template(document, "python/function.html", function)
 
 
 def python_name(
-    name: python.Name,
+    document: Any,
+    name: Any,
 ) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
     """
     Render a python Name as HTML.
     """
-    return _render_template("python/name.html", name)
+    assert isinstance(name, python.Name)
+    return _render_template(document, "python/name.html", name)
+
+
+def python_type(
+    document: Any,
+    type_: Any,
+) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    """
+    Render a python Type as HTML.
+    """
+    assert isinstance(type_, python.Type)
+    return _render_template(document, "python/type.html", type_)
+
+
+def python_generics(
+    document: Any,
+    generics: Any,
+) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    """
+    Render a python Generics as HTML.
+    """
+    assert isinstance(generics, python.Generics)
+    return _render_template(document, "python/generics.html", generics)
+
+
+def references_definition(
+    document: Any,
+    definition: Any,
+) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    """
+    Render a Definition as HTML.
+    """
+    assert isinstance(definition, references.Definition)
+
+    new_id = f"{definition.identifier}:{definition.specifier}"
+
+    visitor = HTMLVisitor(document)
+    definition.child.visit(visitor)
+
+    children = list(visitor.root.children)
+
+    if not children:
+        children.append(HTMLTag("span"))
+
+    first_child = children[0]
+
+    if isinstance(first_child, TextNode):
+        span = HTMLTag("span")
+        span.append(first_child)
+        children[0] = span
+        first_child = span
+
+    if "id" in first_child.attributes:
+        raise NotImplementedError(
+            f"multiple ids (adding {new_id} to {first_child.attributes['id']})"
+        )
+
+    first_child.attributes["id"] = new_id
+
+    return (Visit.SkipChildren, children)
+
+
+def references_reference(
+    document: Any,
+    reference: Any,
+) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    """
+    Render a Reference as HTML.
+    """
+    assert isinstance(document, Document)
+    assert isinstance(reference, references.Reference)
+
+    visitor = HTMLVisitor(document)
+    reference.child.visit(visitor)
+
+    children = list(visitor.root.children)
+
+    if not children:
+        children.append(TextNode(reference.identifier))
+
+    anchor = HTMLTag("a")
+
+    definitions = list(document.index.lookup(reference.identifier))
+
+    if len(definitions) != 1:
+        raise NotImplementedError()
+
+    # XXX: This path stuff is most certainly broken.
+
+    output_path = document.source.output_path
+    definition_path = definitions[0].source.output_path
+
+    if output_path == definition_path:
+        relative_path = ""
+    else:
+        common_path = commonpath((output_path, definition_path))
+
+        parents = len(output_path.relative_to(common_path).parents) - 1
+
+        relative_path = (
+            str(
+                PurePath(*[".."] * parents)
+                / definition_path.relative_to(common_path)
+            )
+            + ".html"
+        )  # TODO: Don't hardcode extension.
+
+    fragment = f"{definitions[0].identifier}:{definitions[0].specifier}"
+    anchor.attributes["href"] = urlunsplit(
+        (
+            "",  # scheme
+            "",  # host
+            pathname2url(relative_path),  # path
+            "",  # query
+            fragment,  # fragment
+        )
+    )
+
+    for child in children:
+        anchor.append(child)
+
+    return (Visit.SkipChildren, [anchor])

@@ -13,7 +13,8 @@
  #
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
- #}<section>
+-#}
+<section>
     <h2>TODO</h2>
 
     {% if node.docstring %}
@@ -23,20 +24,6 @@
     {% endif %}
 
     {% for member in node.members %}
-    <section>
-        <h3>
-            {% if member.name %}
-            {{ member.name|html }}
-            {% elif member.names %}
-            {% for name in member.names %}
-            {{ name|html }}
-            {% if not loop.last %}
-            ,
-            {% endif %}
-            {% endfor %}
-            {% endif %}
-        </h3>
-        {{ member|html }}
-    </section>
+    {{ member|html }}
     {% endfor %}
 </section>

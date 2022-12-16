@@ -2,12 +2,15 @@ asts
 autoescape
 charref
 charrefs
+ctx
 decl
 defs
 delitem
 docc
+commonpath
 endtag
 entityref
+eq
 ethereum
 etree
 eval
@@ -23,8 +26,11 @@ merchantability
 metaclass
 modulefinder
 mypy's
+param
+pathname2url
 renderer
 renderers
+ret
 rvalue
 setitem
 starttag
@@ -34,4 +40,6 @@ toml
 tomli
 tostring
 traverser
+typeddict
 unresolve
+urlunsplit

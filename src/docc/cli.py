@@ -23,6 +23,7 @@ from typing import Dict, Set
 
 from . import build, discover, transform
 from .document import Document
+from .references import Index
 from .settings import Settings
 from .source import Source
 
@@ -48,10 +49,13 @@ def main() -> None:
                 logging.info("[%s] found source: %s", name, item.relative_path)
             known.add(item)
 
+    all_sources = list(known)
+    index = Index()
+
     documents: Dict[Source, Document] = {}
     for name, build_plugin in build_plugins:
         before = len(documents)
-        build_plugin.build(known, documents)
+        build_plugin.build(index, all_sources, known, documents)
         after = len(documents)
         logging.info("[%s] built %s documents", name, after - before)
 

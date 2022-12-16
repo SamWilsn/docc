@@ -20,12 +20,13 @@ Documents are the in-flight representation of a Source.
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from io import StringIO, TextIOBase
-from typing import IO, Iterable, List, Optional, Union
+from typing import IO, Iterable, List, Optional, Sequence, Union
 
 import rich.markup
 import rich.tree
 from rich.console import Console
 
+from .references import Index
 from .source import Source
 
 
@@ -210,10 +211,20 @@ class Document:
     In-flight representation of a Source.
     """
 
+    all_sources: Sequence[Source]
     source: Source
     root: Node
+    index: Index
 
-    def __init__(self, source: Source, root: Node):
+    def __init__(
+        self,
+        all_sources: Sequence[Source],
+        index: Index,
+        source: Source,
+        root: Node,
+    ):
+        self.all_sources = all_sources
+        self.index = index
         self.source = source
         self.root = root
 

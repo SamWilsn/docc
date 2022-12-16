@@ -13,15 +13,18 @@
  #
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
- #}<pre>
+-#}
+<section>
+    <pre>
 {%- for name in node.names -%}
 {{- name|html -}}
 {%- if not loop.last -%}
 , {% endif -%}
 {%- endfor %} = TODO
 </pre>
-{% if node.docstring %}
-<div class="docstring">
-    {{ node.docstring|html }}
-</div>
-{% endif %}
+    {% if node.docstring %}
+    <div class="docstring">
+        {{ node.docstring|html }}
+    </div>
+    {% endif %}
+</section>

@@ -14,9 +14,9 @@
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
-<section>
-    {# TODO: docstring #}
-    <pre>{% for decorator in node.decorators %}{# TODO: decorators #}{% endfor %}
-def {{ node.name|html }}({% for arg in node.arguments %}{# TODO: arg #}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:
-{# TODO: body #}</pre>
-</section>
+[
+{%- for argument in node.arguments -%}
+{{- argument|html -}}
+{%- if not loop.last %}, {% endif -%}
+{%- endfor -%}
+]

@@ -21,6 +21,7 @@ build = [
 
 transform = [
     "docc.mypy.transform",
+    "docc.references.index",
     "docc.html",
 ]
 

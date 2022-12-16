@@ -18,6 +18,7 @@ Source discovery based on mypy.
 """
 
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import (
@@ -34,6 +35,7 @@ from typing import (
 import mypy.build
 import mypy.defaults
 import mypy.nodes
+import mypy.types
 from mypy.find_sources import create_source_list
 from mypy.modulefinder import BuildSource
 from mypy.nodes import (
@@ -48,11 +50,14 @@ from mypy.nodes import (
 )
 from mypy.options import Options
 from mypy.traverser import ExtendedTraverserVisitor
+from mypy.type_visitor import TypeVisitor
 
 from docc.build import Builder
 from docc.discover import Discover, T
 from docc.document import Document, Node, Visit, Visitor
 from docc.languages import python
+from docc.plugins.references import Definition, Reference
+from docc.references import Index
 from docc.settings import PluginSettings
 from docc.source import Source
 from docc.transform import Transform
@@ -139,7 +144,11 @@ class MyPyBuilder(Builder):
         self.settings = config
 
     def build(
-        self, unprocessed: Set[Source], processed: Dict[Source, Document]
+        self,
+        index: Index,
+        all_sources: Sequence[Source],
+        unprocessed: Set[Source],
+        processed: Dict[Source, Document],
     ) -> None:
         """
         Process MyPySources into Documents.
@@ -157,12 +166,19 @@ class MyPyBuilder(Builder):
             source_map[absolute_path] = source
 
         options = Options()
-        options.python_version = mypy.defaults.PYTHON3_VERSION
+        options.python_version = (
+            sys.version_info.major,
+            sys.version_info.minor,
+        )
         options.export_types = True
         options.preserve_asts = True
         result = mypy.build.build(sources=build_sources, options=options)
 
-        for _name, state in result.graph.items():
+        if result.errors:
+            # TODO: Report errors better.
+            raise Exception("mypy build has errors: " + str(result.errors))
+
+        for name, state in result.graph.items():
             if state.abspath is None:
                 if state.path is None:
                     continue
@@ -179,9 +195,11 @@ class MyPyBuilder(Builder):
                 continue
 
             assert source not in processed
-            assert state.tree is not None
+            assert state.tree is not None, f"missing state tree for `{name}`"
 
-            processed[source] = Document(source, MyPyNode(state.tree))
+            processed[source] = Document(
+                all_sources, index, source, MyPyNode(result, state.tree)
+            )
 
         assert 0 == len(source_map)
 
@@ -218,11 +236,13 @@ class _TransformVisitor(Visitor):
     root: Optional[Node]
     old_stack: List[_TransformContext]
     new_stack: List[Node]
+    source_paths: Set[str]
 
-    def __init__(self) -> None:
+    def __init__(self, source_paths: Set[str]) -> None:
         self.root = None
         self.old_stack = []
         self.new_stack = []
+        self.source_paths = source_paths
 
     def push_new(self, node: Node) -> None:
         if self.root is None:
@@ -230,7 +250,7 @@ class _TransformVisitor(Visitor):
             self.root = node
         self.new_stack.append(node)
 
-    def enter_file(self, file: MypyFile) -> Visit:
+    def enter_file(self, node: Node, file: MypyFile) -> Visit:
         assert 0 == len(self.new_stack)
         self.push_new(python.Module())
         return Visit.TraverseChildren
@@ -238,7 +258,9 @@ class _TransformVisitor(Visitor):
     def exit_file(self) -> None:
         self.new_stack.pop()
 
-    def enter_expression_stmt(self, expr_stmt: ExpressionStmt) -> Visit:
+    def enter_expression_stmt(
+        self, node: Node, expr_stmt: ExpressionStmt
+    ) -> Visit:
         old_parent = self.old_stack[-1]
         if isinstance(expr_stmt.expr, StrExpr):
             if isinstance(old_parent.node.node, MypyFile):
@@ -251,7 +273,7 @@ class _TransformVisitor(Visitor):
     def exit_expression_stmt(self) -> None:
         pass
 
-    def enter_str_expr(self, str_expr: StrExpr) -> Visit:
+    def enter_str_expr(self, node: Node, str_expr: StrExpr) -> Visit:
         parent = self.old_stack[-1].node.node
         grandparent = self.old_stack[-2].node.node
 
@@ -272,10 +294,10 @@ class _TransformVisitor(Visitor):
     def exit_str_expr(self) -> None:
         pass
 
-    def enter_decorator(self, decorator: Decorator) -> Visit:
-        func_def = MyPyNode(decorator.func)
+    def enter_decorator(self, node: "MyPyNode", decorator: Decorator) -> Visit:
+        func_def = MyPyNode(node._build, decorator.func)
 
-        visitor = _TransformVisitor()
+        visitor = _TransformVisitor(self.source_paths)
         func_def.visit(visitor)
         assert isinstance(visitor.root, python.Function)
         assert isinstance(visitor.root.decorators, list)
@@ -285,7 +307,7 @@ class _TransformVisitor(Visitor):
 
         for expression in decorator.decorators:
             # TODO: Translate the decorator into a languages.python type.
-            visitor.root.decorators.append(MyPyNode(expression))
+            visitor.root.decorators.append(MyPyNode(node._build, expression))
 
         try:
             parent = self.new_stack[-1]
@@ -304,9 +326,10 @@ class _TransformVisitor(Visitor):
     def exit_decorator(self) -> None:
         self.new_stack.pop()
 
-    def enter_class_def(self, class_def: ClassDef) -> Visit:
+    def enter_class_def(self, node: "MyPyNode", class_def: ClassDef) -> Visit:
         name = python.Name(name=class_def.name, full_name=class_def.fullname)
         class_ = python.Class(name=name)
+        definition = Definition(identifier=class_def.fullname, child=class_)
 
         try:
             parent = self.new_stack[-1]
@@ -316,7 +339,7 @@ class _TransformVisitor(Visitor):
         if parent is not None:
             if hasattr(parent, "members"):
                 if isinstance(parent.members, list):
-                    parent.members.append(class_)
+                    parent.members.append(definition)
 
         self.push_new(class_)
 
@@ -325,16 +348,17 @@ class _TransformVisitor(Visitor):
         # TODO: class_def.info (base types, etc)
 
         visitor = _ClassDefsVisitor(class_)
-        MyPyNode(class_def.defs).visit(visitor)
+        MyPyNode(node._build, class_def.defs).visit(visitor)
 
         return Visit.SkipChildren
 
     def exit_class_def(self) -> None:
         self.new_stack.pop()
 
-    def enter_func_def(self, func_def: FuncDef) -> Visit:
+    def enter_func_def(self, node: "MyPyNode", func_def: FuncDef) -> Visit:
         name = python.Name(name=func_def.name, full_name=func_def.fullname)
         func = python.Function(name=name)
+        definition = Definition(identifier=func_def.fullname, child=func)
 
         try:
             parent = self.new_stack[-1]
@@ -344,22 +368,30 @@ class _TransformVisitor(Visitor):
         if parent is not None:
             if hasattr(parent, "members"):
                 if isinstance(parent.members, list):
-                    parent.members.append(func)
+                    parent.members.append(definition)
 
         self.push_new(func)
 
         # TODO: arguments
-        # TODO: return type
+
+        if func_def.type:
+            assert isinstance(func_def.type, mypy.types.CallableType)
+            type_visitor = _TypeVisitor(self.source_paths, node._build)
+            func_def.type.ret_type.accept(type_visitor)
+            assert type_visitor.root is not None
+            func.return_type = type_visitor.root
 
         visitor = _FuncBodyVisitor(func)
-        MyPyNode(func_def.body).visit(visitor)
+        MyPyNode(node._build, func_def.body).visit(visitor)
 
         return Visit.SkipChildren
 
     def exit_func_def(self) -> None:
         self.new_stack.pop()
 
-    def enter_assignment_stmt(self, node: AssignmentStmt) -> Visit:
+    def enter_assignment_stmt(
+        self, mypy: "MyPyNode", node: AssignmentStmt
+    ) -> Visit:
         names = []
 
         for name in node.lvalues:
@@ -370,7 +402,9 @@ class _TransformVisitor(Visitor):
             names.append(python_name)
 
         # TODO: Convert lvalue to a non-mypy type.
-        attribute = python.Attribute(names=names, value=MyPyNode(node.rvalue))
+        attribute = python.Attribute(
+            names=names, value=MyPyNode(mypy._build, node.rvalue)
+        )
 
         try:
             parent = self.new_stack[-1]
@@ -409,19 +443,19 @@ class _TransformVisitor(Visitor):
         visit: Visit
 
         if isinstance(node, MypyFile):
-            visit = self.enter_file(node)
+            visit = self.enter_file(any_node, node)
         elif isinstance(node, ExpressionStmt):
-            visit = self.enter_expression_stmt(node)
+            visit = self.enter_expression_stmt(any_node, node)
         elif isinstance(node, StrExpr):
-            visit = self.enter_str_expr(node)
+            visit = self.enter_str_expr(any_node, node)
         elif isinstance(node, Decorator):
-            visit = self.enter_decorator(node)
+            visit = self.enter_decorator(any_node, node)
         elif isinstance(node, ClassDef):
-            visit = self.enter_class_def(node)
+            visit = self.enter_class_def(any_node, node)
         elif isinstance(node, FuncDef):
-            visit = self.enter_func_def(node)
+            visit = self.enter_func_def(any_node, node)
         elif isinstance(node, AssignmentStmt):
-            visit = self.enter_assignment_stmt(node)
+            visit = self.enter_assignment_stmt(any_node, node)
         elif module_member and isinstance(node, mypy.nodes.Node):
             logging.debug("skipping module member node %s", node)
             visit = Visit.SkipChildren
@@ -476,7 +510,16 @@ class MyPyTransform(Transform):
         """
         Apply the transformation to the given document.
         """
-        visitor = _TransformVisitor()
+        mypy_sources = (
+            x for x in document.all_sources if isinstance(x, MyPySource)
+        )
+
+        source_paths = set(
+            x.build_source.path
+            for x in mypy_sources
+            if x.build_source.path is not None
+        )
+        visitor = _TransformVisitor(source_paths)
         try:
             document.root.visit(visitor)
         except NotImplementedError:
@@ -508,6 +551,151 @@ class _ChildrenVisitor(ExtendedTraverserVisitor):
         return False
 
 
+class _TypeVisitor(TypeVisitor[None]):
+    root: Optional[python.Type]
+    stack: List[python.Type]
+    build: mypy.build.BuildResult
+    source_paths: Set[str]
+
+    def __init__(
+        self, source_paths: Set[str], build: mypy.build.BuildResult
+    ) -> None:
+        self.root = None
+        self.stack = []
+        self.build = build
+
+        self.source_paths = source_paths
+
+    def push(self, type_: python.Type) -> None:
+        if self.root is None:
+            assert not self.stack
+            self.root = type_
+            self.stack.append(type_)
+            return
+
+        assert 0 < len(self.stack)
+        assert isinstance(self.stack[-1].generics, python.Generics)
+        assert isinstance(self.stack[-1].generics.arguments, list)
+        self.stack[-1].generics.arguments.append(type_)
+        self.stack.append(type_)
+
+    def pop(self) -> None:
+        self.stack.pop()
+
+    def push_leaf(self, type_: python.Type) -> None:
+        self.push(type_)
+        self.pop()
+
+    def visit_unbound_type(self, t: mypy.types.UnboundType) -> None:
+        raise NotImplementedError()
+
+    def visit_any(self, t: mypy.types.AnyType) -> None:
+        # TODO: is `typing.Any` always the correct full_name?
+        name = python.Name("Any", None)
+        type_ = python.Type(name=name)
+        self.push_leaf(type_)
+
+    def visit_none_type(self, t: mypy.types.NoneType) -> None:
+        # TODO: What is the correct full_name?
+        name = python.Name("None", None)
+        type_ = python.Type(name=name)
+        self.push_leaf(type_)
+
+    def visit_uninhabited_type(self, t: mypy.types.UninhabitedType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_erased_type(self, t: mypy.types.ErasedType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_deleted_type(self, t: mypy.types.DeletedType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_type_var(self, t: mypy.types.TypeVarType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_param_spec(self, t: mypy.types.ParamSpecType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_parameters(self, t: mypy.types.Parameters) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_type_var_tuple(self, t: mypy.types.TypeVarTupleType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_instance(self, t: mypy.types.Instance) -> None:
+        full_name = t.type_ref if t.type_ref is not None else t.type.fullname
+        name: Node = python.Name(name=t.type.name, full_name=full_name)
+
+        try:
+            source_path = self.build.files[t.type.module_name].path
+        except IndexError:
+            source_path = None
+
+        if source_path in self.source_paths:
+            name = Reference(identifier=full_name, child=name)
+
+        if not t.args:
+            self.push_leaf(python.Type(name=name))
+            return
+
+        generics = python.Generics()
+        type_ = python.Type(name=name, generics=generics)
+        self.push(type_)
+
+        for argument in t.args:
+            argument.accept(self)
+
+        self.pop()
+
+    def visit_callable_type(self, t: mypy.types.CallableType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_overloaded(self, t: mypy.types.Overloaded) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_tuple_type(self, t: mypy.types.TupleType) -> None:
+        # TODO: is `typing.Tuple` always the correct full_name?
+        name = python.Name(name="Tuple", full_name="typing.Tuple")
+        generics = python.Generics()
+        type_ = python.Type(name=name, generics=generics)
+        self.push(type_)
+
+        for item in t.items:
+            item.accept(self)
+
+        self.pop()
+
+    def visit_typeddict_type(self, t: mypy.types.TypedDictType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_literal_type(self, t: mypy.types.LiteralType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_union_type(self, t: mypy.types.UnionType) -> None:
+        # TODO: is `typing.Union` always the correct full_name?
+        name = python.Name(name="Union", full_name="typing.Union")
+        generics = python.Generics()
+        type_ = python.Type(name=name, generics=generics)
+        self.push(type_)
+
+        for item in t.items:
+            item.accept(self)
+
+        self.pop()
+
+    def visit_partial_type(self, t: mypy.types.PartialType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_type_type(self, t: mypy.types.TypeType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_type_alias_type(self, t: mypy.types.TypeAliasType) -> None:
+        raise NotImplementedError(repr(t))
+
+    def visit_unpack_type(self, t: mypy.types.UnpackType) -> None:
+        raise NotImplementedError(repr(t))
+
+
 class MyPyNode(Node):
     """
     A wrapper around a mypy tree node.
@@ -517,13 +705,15 @@ class MyPyNode(Node):
 
     node: mypy.nodes.Node
     _children: Union[List[Node], Iterator[Node]]
+    _build: mypy.build.BuildResult
 
-    def __init__(self, node: mypy.nodes.Node):
+    def __init__(self, build: mypy.build.BuildResult, node: mypy.nodes.Node):
         self.node = node
 
         visitor = _ChildrenVisitor()
         self.node.accept(visitor)
-        self._children = (MyPyNode(n) for n in visitor.children)
+        self._build = build
+        self._children = (MyPyNode(build, n) for n in visitor.children)
 
     @property
     def children(self) -> List[Node]:

@@ -22,6 +22,7 @@ from typing import Dict, Sequence, Set, Tuple
 
 from .document import Document
 from .plugins.loader import Loader
+from .references import Index
 from .settings import PluginSettings, Settings
 from .source import Source
 
@@ -40,7 +41,11 @@ class Builder(ABC):
 
     @abstractmethod
     def build(
-        self, unprocessed: Set[Source], processed: Dict[Source, Document]
+        self,
+        index: Index,
+        all_sources: Sequence[Source],
+        unprocessed: Set[Source],
+        processed: Dict[Source, Document],
     ) -> None:
         """
         Consume unprocessed Sources and insert their Documents into processed.
