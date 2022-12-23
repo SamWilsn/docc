@@ -60,8 +60,8 @@ def main() -> None:
         after = len(documents)
         logging.info("[%s] built %s documents", name, after - before)
 
-    for document in documents.values():
-        for _name, transform_plugin in transform_plugins:
+    for _name, transform_plugin in transform_plugins:
+        for document in documents.values():
             transform_plugin.transform(document)
 
     rmtree(settings.output.path)

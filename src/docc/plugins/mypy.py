@@ -22,6 +22,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import (
+    cast,
     Dict,
     FrozenSet,
     Iterator,
@@ -253,13 +254,16 @@ class _VerbatimVisitor(Visitor):
     def enter(self, node: Node) -> Visit:
         new_node = node
         if isinstance(node, MyPyNode):
-            if node.end is None:
-                node.dump()
-            assert node.end is not None, f"`{node}` has no end position"
+            start = Pos(
+                line=max(node.start.line, 1),
+                column=max(node.start.column, 0),
+            )
+
+            assert node.end is not None
 
             name = dasherize(underscore(node.node.__class__.__name__))
             new_node = verbatim.Fragment(
-                start=node.start,
+                start=start,
                 end=node.end,
                 highlights=[name],
             )
@@ -297,38 +301,16 @@ class _LastVisitor(Visitor):
 class _FixPositionVisitor(Visitor):
     full_stack: List["Node"]
     stack: List["MyPyNode"]
-    biggest: Pos
 
     def __init__(self) -> None:
         self.full_stack = []
         self.stack = []
-        self.biggest = Pos(line=1, column=0)
 
     def enter(self, node: Node) -> Visit:
         self.full_stack.append(node)
 
         if not isinstance(node, MyPyNode):
             return Visit.TraverseChildren
-
-        # Attempt to fix nodes with column < 0
-        if node.start.column >= 0:
-            assert (
-                node.start >= self.biggest
-            ), f"{node.start} >= {self.biggest}"
-            self.biggest = node.start
-        elif node.start.line == self.biggest.line:
-            node.start = self.biggest
-        else:
-            assert (
-                node.start.line > self.biggest.line
-            ), f"{node.start.line} > {self.biggest.line}"
-            self.biggest = Pos(
-                line=node.start.line,
-                column=0,
-            )
-            node.start = self.biggest
-
-        print(f"enter {node}")
 
         if len(self.full_stack) > 1:
             siblings = list(self.full_stack[-2].children)
@@ -356,9 +338,6 @@ class _FixPositionVisitor(Visitor):
 
         if not isinstance(node, MyPyNode):
             return
-
-        if node.end is not None and node.end > self.biggest:
-            self.biggest = node.end
 
         print(f"exit {node}\n")
         self.stack.pop()
@@ -752,15 +731,6 @@ class _ChildrenVisitor(ExtendedTraverserVisitor):
             self.depth += 1
             return True
 
-        if o.column >= 0:
-            if self.children:
-                assert o.line >= self.children[-1].line
-                if (
-                    self.children[-1].column >= 0
-                    and o.line == self.children[-1].line
-                ):
-                    assert o.column >= self.children[-1].column
-
         self.children.append(o)
         return False
 
@@ -937,7 +907,10 @@ class MyPyNode(Node):
         visitor = _ChildrenVisitor()
         self.node.accept(visitor)
         self._build = build
-        self._children = (MyPyNode(build, n) for n in visitor.children)
+        self._children = sorted(
+            (MyPyNode(build, n) for n in visitor.children),
+            key=lambda m: cast(MyPyNode, m).start
+        )
 
     @property
     def children(self) -> List[Node]:
