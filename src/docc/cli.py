@@ -19,6 +19,7 @@ Command line interface to docc.
 
 import logging
 from pathlib import Path
+from shutil import rmtree
 from typing import Dict, Set
 
 from . import build, discover, transform
@@ -62,6 +63,8 @@ def main() -> None:
     for document in documents.values():
         for _name, transform_plugin in transform_plugins:
             transform_plugin.transform(document)
+
+    rmtree(settings.output.path)
 
     for source, document in documents.items():
         output_path = settings.output.path / source.output_path

@@ -44,10 +44,11 @@ from jinja2 import Environment, PackageLoader, pass_context, select_autoescape
 from jinja2.runtime import Context
 
 from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
-from docc.languages import python
+from docc.languages import python, verbatim
 from docc.plugins import references
 from docc.plugins.loader import PluginError
 from docc.settings import PluginSettings
+from docc.source import TextSource
 from docc.transform import Transform
 
 if sys.version_info < (3, 10):
@@ -508,6 +509,84 @@ def python_generics(
     return _render_template(document, "python/generics.html", generics)
 
 
+class _VerbatimVisitor(verbatim.VerbatimVisitor):
+    root: HTMLTag
+    body: HTMLTag
+    node_stack: List[Node]
+    highlights_stack: List[Sequence[str]]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.body = HTMLTag("tbody")
+
+        self.root = HTMLTag("table")
+        self.root.append(self.body)
+
+        self.node_stack = []
+        self.highlights_stack = []
+
+    def line(self, source: TextSource, line: int) -> None:
+        print(f"line({line})")
+        line_text = TextNode(str(line))
+
+        line_cell = HTMLTag("th")
+        line_cell.append(line_text)
+
+        code_cell = HTMLTag("td")
+
+        row = HTMLTag("tr")
+        row.append(line_cell)
+        row.append(code_cell)
+
+        self.body.append(row)
+
+        self.node_stack = [code_cell]
+        self._highlight(self.highlights_stack)
+
+    def _highlight(self, highlight_groups: Sequence[Sequence[str]]) -> None:
+        for highlights in highlight_groups:
+            assert isinstance(self.node_stack[-1], HTMLTag)
+
+            span = HTMLTag(
+                "span",
+                attributes={
+                    "class": " ".join(f"hi-{h}" for h in highlights),
+                },
+            )
+            self.node_stack[-1].append(span)
+            self.node_stack.append(span)
+
+    def text(self, text: str) -> None:
+        print(f"text({text})")
+        assert isinstance(self.node_stack[-1], HTMLTag)
+        self.node_stack[-1].append(TextNode(text))
+
+    def begin_highlight(self, highlights: Sequence[str]) -> None:
+        print(f"begin_highlight({highlights})")
+        self.highlights_stack.append(highlights)
+        self._highlight([highlights])
+
+    def end_highlight(self) -> None:
+        print("end_highlight()")
+        self.highlights_stack.pop()
+        self.node_stack.pop()
+
+
+def verbatim_verbatim(
+    document: Document,
+    node: verbatim.Verbatim,
+) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    """
+    Render a verbatim block as HTML.
+    """
+    assert isinstance(document, Document)
+    assert isinstance(node, verbatim.Verbatim)
+
+    visitor = _VerbatimVisitor()
+    node.visit(visitor)
+    return (Visit.SkipChildren, [visitor.root])
+
+
 def references_definition(
     document: Any,
     definition: Any,
@@ -562,6 +641,8 @@ def references_reference(
 
     if not children:
         children.append(TextNode(reference.identifier))
+
+    # TODO: handle tr, td, and other elements that can't be wrapped in an <a>.
 
     anchor = HTMLTag("a")
 

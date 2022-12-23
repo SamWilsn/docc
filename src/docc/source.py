@@ -55,3 +55,21 @@ class Source(ABC):
                 f"{self.__class__.__qualname__}: "
                 f'"{self.relative_path}">'
             )
+
+
+class TextSource(Source):
+    """
+    A Source that supports reading text snippets.
+    """
+
+    @abstractmethod
+    def line(self, line: int) -> str:
+        """
+        Extract a line of text from the source.
+        """
+
+    @abstractmethod
+    def lines(self) -> int:
+        """
+        Get the total number of lines in this Source.
+        """

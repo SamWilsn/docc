@@ -16,7 +16,7 @@
 -#}
 <section>
     {# TODO: docstring #}
-    <pre>{% for decorator in node.decorators %}{# TODO: decorators #}{% endfor %}
+    <pre>{% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
 def {{ node.name|html }}({% for arg in node.arguments %}{# TODO: arg #}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:
-{# TODO: body #}</pre>
+{{ node.body|html }}</pre>
 </section>

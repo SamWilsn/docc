@@ -36,6 +36,7 @@ import mypy.build
 import mypy.defaults
 import mypy.nodes
 import mypy.types
+from inflection import dasherize, underscore
 from mypy.find_sources import create_source_list
 from mypy.modulefinder import BuildSource
 from mypy.nodes import (
@@ -55,11 +56,12 @@ from mypy.type_visitor import TypeVisitor
 from docc.build import Builder
 from docc.discover import Discover, T
 from docc.document import Document, Node, Visit, Visitor
-from docc.languages import python
+from docc.languages import python, verbatim
+from docc.languages.verbatim import Pos
 from docc.plugins.references import Definition, Reference
 from docc.references import Index
 from docc.settings import PluginSettings
-from docc.source import Source
+from docc.source import Source, TextSource
 from docc.transform import Transform
 
 
@@ -95,6 +97,7 @@ class MyPyDiscover(Discover):
         options.python_version = mypy.defaults.PYTHON3_VERSION
         options.export_types = True
         options.preserve_asts = True
+        options.show_column_numbers = True
         for build_source in create_source_list(self.paths, options):
             relative_path = None
             assert build_source.path is not None
@@ -103,7 +106,7 @@ class MyPyDiscover(Discover):
             yield MyPySource(relative_path, build_source)
 
 
-class MyPySource(Source):
+class MyPySource(TextSource):
     """
     A Source based on mypy.
     """
@@ -130,6 +133,26 @@ class MyPySource(Source):
         Where to put the output derived from this source.
         """
         return self._relative_path
+
+    def lines(self) -> int:
+        """
+        Get the total number of lines in this Source.
+        """
+        assert self.build_source.path is not None
+
+        # TODO: Don't reopen and reread the file every time...
+        with open(self.build_source.path, "r") as f:
+            return len(list(f))
+
+    def line(self, number: int) -> str:
+        """
+        Extract a line of text from the source.
+        """
+        assert self.build_source.path is not None
+
+        # TODO: Don't reopen and reread the file every time...
+        with open(self.build_source.path, "r") as f:
+            return list(f)[number - 1]
 
 
 class MyPyBuilder(Builder):
@@ -172,6 +195,7 @@ class MyPyBuilder(Builder):
         )
         options.export_types = True
         options.preserve_asts = True
+        options.show_column_numbers = True
         result = mypy.build.build(sources=build_sources, options=options)
 
         if result.errors:
@@ -204,17 +228,6 @@ class MyPyBuilder(Builder):
         assert 0 == len(source_map)
 
 
-class _FuncBodyVisitor(Visitor):
-    def __init__(self, func: python.Function) -> None:
-        pass  # TODO
-
-    def enter(self, any_node: Node) -> Visit:
-        return Visit.SkipChildren  # TODO
-
-    def exit(self, any_node: Node) -> None:
-        pass  # TODO
-
-
 class _ClassDefsVisitor(Visitor):
     def __init__(self, class_: python.Class) -> None:
         pass  # TODO
@@ -226,22 +239,189 @@ class _ClassDefsVisitor(Visitor):
         pass  # TODO
 
 
+class _VerbatimVisitor(Visitor):
+    root: verbatim.Verbatim
+    stack: List[Node]
+
+    def __init__(self, source: MyPySource) -> None:
+        stanza = verbatim.Stanza(source)
+
+        self.stack = [stanza]
+        self.root = verbatim.Verbatim()
+        self.root.append(stanza)
+
+    def enter(self, node: Node) -> Visit:
+        new_node = node
+        if isinstance(node, MyPyNode):
+            if node.end is None:
+                node.dump()
+            assert node.end is not None, f"`{node}` has no end position"
+
+            name = dasherize(underscore(node.node.__class__.__name__))
+            new_node = verbatim.Fragment(
+                start=node.start,
+                end=node.end,
+                highlights=[name],
+            )
+
+        if isinstance(self.stack[-1], verbatim.VerbatimNode):
+            self.stack[-1].append(new_node)
+        else:
+            self.stack[-1].replace_child(node, new_node)
+
+        self.stack.append(new_node)
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        self.stack.pop()
+
+
 @dataclass
 class _TransformContext:
     node: "MyPyNode"
     child_offset: int = 0
 
 
+class _LastVisitor(Visitor):
+    last: Optional["MyPyNode"]
+
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, MyPyNode):
+            self.last = node
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass
+
+
+class _FixPositionVisitor(Visitor):
+    full_stack: List["Node"]
+    stack: List["MyPyNode"]
+    biggest: Pos
+
+    def __init__(self) -> None:
+        self.full_stack = []
+        self.stack = []
+        self.biggest = Pos(line=1, column=0)
+
+    def enter(self, node: Node) -> Visit:
+        self.full_stack.append(node)
+
+        if not isinstance(node, MyPyNode):
+            return Visit.TraverseChildren
+
+        # Attempt to fix nodes with column < 0
+        if node.start.column >= 0:
+            assert (
+                node.start >= self.biggest
+            ), f"{node.start} >= {self.biggest}"
+            self.biggest = node.start
+        elif node.start.line == self.biggest.line:
+            node.start = self.biggest
+        else:
+            assert (
+                node.start.line > self.biggest.line
+            ), f"{node.start.line} > {self.biggest.line}"
+            self.biggest = Pos(
+                line=node.start.line,
+                column=0,
+            )
+            node.start = self.biggest
+
+        print(f"enter {node}")
+
+        if len(self.full_stack) > 1:
+            siblings = list(self.full_stack[-2].children)
+            my_index = siblings.index(node)
+            if my_index > 0:
+                previous = siblings[my_index - 1]
+                if isinstance(previous, MyPyNode) and previous.end is None:
+                    # TODO: trim whitespace?
+                    print(f"\tsibling {previous} to {node.start}")
+                    previous.end = node.start
+
+        if node.end is not None:
+            for ancestor in self.stack:
+                if None in (ancestor.node.end_line, ancestor.node.end_column):
+                    if ancestor.end is None or node.end > ancestor.end:
+                        print(f"\tancestor {ancestor} to {node.end}")
+                        ancestor.end = node.end
+        print()
+
+        self.stack.append(node)
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        self.full_stack.pop()
+
+        if not isinstance(node, MyPyNode):
+            return
+
+        if node.end is not None and node.end > self.biggest:
+            self.biggest = node.end
+
+        print(f"exit {node}\n")
+        self.stack.pop()
+
+
+class _FixLastChildPositionVisitor(Visitor):
+    most_recent: List[Pos]
+
+    def __init__(self) -> None:
+        self.most_recent = []
+
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, MyPyNode) and node.end is not None:
+            self.most_recent.append(node.end)
+            most_recent = node.end
+        else:
+            try:
+                most_recent = self.most_recent[-1]
+            except IndexError:
+                most_recent = None
+
+        last_child = None
+        for last_child in node.children:
+            pass
+        if last_child is None:
+            return Visit.TraverseChildren
+
+        if isinstance(last_child, MyPyNode) and last_child.end is None:
+            print(f"last child {last_child} to {most_recent}")
+            last_child.end = most_recent
+
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        if isinstance(node, MyPyNode) and node.end is not None:
+            self.most_recent.pop()
+
+
+class _UpdateMyPyPosition(Visitor):
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, MyPyNode) and node.end is not None:
+            if None in (node.node.end_line, node.node.end_column):
+                node.node.end_line = node.end.line
+                node.node.end_column = node.end.column
+
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass
+
+
 class _TransformVisitor(Visitor):
     root: Optional[Node]
     old_stack: List[_TransformContext]
     new_stack: List[Node]
+    document: Document
     source_paths: Set[str]
 
-    def __init__(self, source_paths: Set[str]) -> None:
+    def __init__(self, document: Document, source_paths: Set[str]) -> None:
         self.root = None
         self.old_stack = []
         self.new_stack = []
+        self.document = document
         self.source_paths = source_paths
 
     def push_new(self, node: Node) -> None:
@@ -295,9 +475,10 @@ class _TransformVisitor(Visitor):
         pass
 
     def enter_decorator(self, node: "MyPyNode", decorator: Decorator) -> Visit:
+        assert isinstance(self.document.source, MyPySource)
         func_def = MyPyNode(node._build, decorator.func)
 
-        visitor = _TransformVisitor(self.source_paths)
+        visitor = _TransformVisitor(self.document, self.source_paths)
         func_def.visit(visitor)
         assert isinstance(visitor.root, python.Function)
         assert isinstance(visitor.root.decorators, list)
@@ -306,8 +487,9 @@ class _TransformVisitor(Visitor):
         # TODO: `builtins.property` is not a decorator in mypy.
 
         for expression in decorator.decorators:
-            # TODO: Translate the decorator into a languages.python type.
-            visitor.root.decorators.append(MyPyNode(node._build, expression))
+            verbatim = _VerbatimVisitor(self.document.source)
+            MyPyNode(node._build, expression).visit(verbatim)
+            visitor.root.decorators.append(verbatim.root)
 
         try:
             parent = self.new_stack[-1]
@@ -356,6 +538,8 @@ class _TransformVisitor(Visitor):
         self.new_stack.pop()
 
     def enter_func_def(self, node: "MyPyNode", func_def: FuncDef) -> Visit:
+        assert isinstance(self.document.source, MyPySource)
+
         name = python.Name(name=func_def.name, full_name=func_def.fullname)
         func = python.Function(name=name)
         definition = Definition(identifier=func_def.fullname, child=func)
@@ -381,8 +565,9 @@ class _TransformVisitor(Visitor):
             assert type_visitor.root is not None
             func.return_type = type_visitor.root
 
-        visitor = _FuncBodyVisitor(func)
+        visitor = _VerbatimVisitor(self.document.source)
         MyPyNode(node._build, func_def.body).visit(visitor)
+        func.body = visitor.root
 
         return Visit.SkipChildren
 
@@ -510,6 +695,26 @@ class MyPyTransform(Transform):
         """
         Apply the transformation to the given document.
         """
+        assert isinstance(document.source, TextSource)
+        last = _LastVisitor()
+        document.root.visit(last)
+
+        if last.last and last.last.end is None:
+            # TODO: Trim whitespace
+            lines = document.source.lines()
+            last.last.end = Pos(
+                line=lines, column=len(document.source.line(lines))
+            )
+
+        fix = _FixPositionVisitor()
+        document.root.visit(fix)
+
+        fix_last_child = _FixLastChildPositionVisitor()
+        document.root.visit(fix_last_child)
+
+        repair = _UpdateMyPyPosition()
+        document.root.visit(repair)
+
         mypy_sources = (
             x for x in document.all_sources if isinstance(x, MyPySource)
         )
@@ -519,7 +724,7 @@ class MyPyTransform(Transform):
             for x in mypy_sources
             if x.build_source.path is not None
         )
-        visitor = _TransformVisitor(source_paths)
+        visitor = _TransformVisitor(document, source_paths)
         try:
             document.root.visit(visitor)
         except NotImplementedError:
@@ -546,6 +751,15 @@ class _ChildrenVisitor(ExtendedTraverserVisitor):
         if self.depth == 0:
             self.depth += 1
             return True
+
+        if o.column >= 0:
+            if self.children:
+                assert o.line >= self.children[-1].line
+                if (
+                    self.children[-1].column >= 0
+                    and o.line == self.children[-1].line
+                ):
+                    assert o.column >= self.children[-1].column
 
         self.children.append(o)
         return False
@@ -701,14 +915,24 @@ class MyPyNode(Node):
     A wrapper around a mypy tree node.
     """
 
-    __slots__ = ("node", "_children")
+    __slots__ = ("node", "_children", "_build", "start", "end")
 
     node: mypy.nodes.Node
+
+    start: Pos
+    end: Optional[Pos]
+
     _children: Union[List[Node], Iterator[Node]]
     _build: mypy.build.BuildResult
 
     def __init__(self, build: mypy.build.BuildResult, node: mypy.nodes.Node):
         self.node = node
+
+        self.start = Pos(line=node.line, column=node.column)
+
+        self.end = None
+        if node.end_line is not None and node.end_column is not None:
+            self.end = Pos(line=node.end_line, column=node.end_column)
 
         visitor = _ChildrenVisitor()
         self.node.accept(visitor)
@@ -740,6 +964,10 @@ class MyPyNode(Node):
         if hasattr(self.node, "name"):
             arguments = f"name={self.node.name!r}, {arguments}"
 
+        rest = f", start={self.start!r}"
+        if self.end:
+            rest = f"{rest}, end={self.end!r}"
+
         my_name = self.__class__.__name__
         inner_name = self.node.__class__.__name__
-        return f"{my_name}({inner_name}({arguments}))"
+        return f"{my_name}({inner_name}({arguments}){rest})"
