@@ -16,13 +16,13 @@ discovery = [
 ]
 
 build = [
-    "docc.python.build",
+    "docc.cst.build",
     "docc.mypy.build",
 ]
 
 transform = [
     "docc.mypy.transform",
-    "docc.python.transform",
+    "docc.cst.transform",
     "docc.references.index",
     "docc.html",
 ]

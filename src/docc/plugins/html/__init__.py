@@ -537,13 +537,15 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
         self.highlights_stack = []
 
     def line(self, source: TextSource, line: int) -> None:
-        print(f"line({line})")
         line_text = TextNode(str(line))
 
         line_cell = HTMLTag("th")
         line_cell.append(line_text)
 
+        code_pre = HTMLTag("pre")
+
         code_cell = HTMLTag("td")
+        code_cell.append(code_pre)
 
         row = HTMLTag("tr")
         row.append(line_cell)
@@ -551,7 +553,7 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
 
         self.body.append(row)
 
-        self.node_stack = [code_cell]
+        self.node_stack = [code_pre]
         self._highlight(self.highlights_stack)
 
     def _highlight(self, highlight_groups: Sequence[Sequence[str]]) -> None:
@@ -568,17 +570,14 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
             self.node_stack.append(span)
 
     def text(self, text: str) -> None:
-        print(f"text({text})")
         assert isinstance(self.node_stack[-1], HTMLTag)
         self.node_stack[-1].append(TextNode(text))
 
     def begin_highlight(self, highlights: Sequence[str]) -> None:
-        print(f"begin_highlight({highlights})")
         self.highlights_stack.append(highlights)
         self._highlight([highlights])
 
     def end_highlight(self) -> None:
-        print("end_highlight()")
         self.highlights_stack.pop()
         self.node_stack.pop()
 

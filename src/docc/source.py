@@ -75,4 +75,10 @@ class TextSource(Source):
 
         # TODO: Don't reopen and reread the file every time...
         with self.open() as f:
-            return list(f)[number - 1]
+            lines = f.read().split("\n")
+            try:
+                return lines[number - 1]
+            except IndexError as e:
+                raise IndexError(
+                    f"line {number} out of range for `{self.relative_path}`"
+                ) from e

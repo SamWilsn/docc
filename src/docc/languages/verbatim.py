@@ -95,6 +95,9 @@ class Verbatim(VerbatimNode):
     A block of lines of text from one or more Sources.
     """
 
+    def __repr__(self) -> str:
+        return "Verbatim()"
+
 
 class Stanza(VerbatimNode):
     """
@@ -106,6 +109,9 @@ class Stanza(VerbatimNode):
     def __init__(self, source: TextSource) -> None:
         super().__init__()
         self.source = source
+
+    def __repr__(self) -> str:
+        return f"Stanza({self.source!r})"
 
 
 class Fragment(VerbatimNode):
@@ -125,6 +131,9 @@ class Fragment(VerbatimNode):
         self.start = start
         self.end = end
         self.highlights = [] if highlights is None else highlights
+
+    def __repr__(self) -> str:
+        return f"Fragment({self.start}, {self.end}, {self.highlights!r})"
 
 
 @dataclass
@@ -224,6 +233,12 @@ class VerbatimVisitor(Visitor):
             self._stanza.written.column = 0
 
             self.line(self._stanza.source, self._stanza.written.line)
+
+        if self._stanza.written.line > until.line:
+            return
+
+        if self._stanza.written.column >= until.column:
+            return
 
         text = self._stanza.source.line(self._stanza.written.line)
         self.text(text[self._stanza.written.column : until.column])

@@ -168,9 +168,9 @@ class MyPyBuilder(Builder):
             document.root = root
 
         if paths:
-            self._dmypy(["check", "--export-types"] + list(paths))
+            self._dmypy(["check", "--export-types"] + list(paths), check=False)
 
-    def _dmypy(self, args: Sequence[str]) -> str:
+    def _dmypy(self, args: Sequence[str], check=True) -> str:
         assert self._status_directory is not None
         assert self._process is not None
 
@@ -185,7 +185,7 @@ class MyPyBuilder(Builder):
                 os.path.join(self._status_directory.name, ".dmypy.json"),
             ]
             + list(args),
-            check=True,
+            check=check,
             stdout=subprocess.PIPE,
             text=True,
         )
@@ -210,7 +210,6 @@ class MyPyBuilder(Builder):
                     status_file,
                     "daemon",
                     "--",
-                    "--check-untyped-defs",
                     "--ignore-missing-imports",
                 ]
             )
