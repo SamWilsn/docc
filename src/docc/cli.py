@@ -18,6 +18,7 @@ Command line interface to docc.
 """
 
 import logging
+from contextlib import ExitStack
 from pathlib import Path
 from shutil import rmtree
 from typing import Dict, Set
@@ -36,7 +37,6 @@ def main() -> None:
     settings = Settings(Path.cwd())
 
     discover_plugins = discover.load(settings)
-    build_plugins = build.load(settings)
     transform_plugins = transform.load(settings)
 
     known: Set[Source] = set()
@@ -53,28 +53,33 @@ def main() -> None:
     all_sources = list(known)
     index = Index()
 
-    documents: Dict[Source, Document] = {}
-    for name, build_plugin in build_plugins:
-        before = len(documents)
-        build_plugin.build(index, all_sources, known, documents)
-        after = len(documents)
-        logging.info("[%s] built %s documents", name, after - before)
+    with ExitStack() as exit_stack:
+        build_plugins = [
+            (n, exit_stack.enter_context(c)) for (n, c) in build.load(settings)
+        ]
 
-    for _name, transform_plugin in transform_plugins:
-        for document in documents.values():
-            transform_plugin.transform(document)
+        documents: Dict[Source, Document] = {}
+        for name, build_plugin in build_plugins:
+            before = len(documents)
+            build_plugin.build(index, all_sources, known, documents)
+            after = len(documents)
+            logging.info("[%s] built %s documents", name, after - before)
 
-    rmtree(settings.output.path)
+        for _name, transform_plugin in transform_plugins:
+            for document in documents.values():
+                transform_plugin.transform(document)
 
-    for source, document in documents.items():
-        output_path = settings.output.path / source.output_path
-        output_path = Path(
-            output_path.with_suffix(
-                output_path.suffix + settings.output.extension
+        rmtree(settings.output.path, ignore_errors=True)
+
+        for source, document in documents.items():
+            output_path = settings.output.path / source.output_path
+            output_path = Path(
+                output_path.with_suffix(
+                    output_path.suffix + settings.output.extension
+                )
             )
-        )
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, "w") as destination:
-            document.output(destination)
+            with open(output_path, "w") as destination:
+                document.output(destination)

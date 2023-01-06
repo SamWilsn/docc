@@ -17,49 +17,33 @@
 Source discovery based on mypy.
 """
 
-import logging
+import os.path
+import subprocess
 import sys
-from dataclasses import dataclass
-from pathlib import Path, PurePath
+import time
+from contextlib import ExitStack
+from pathlib import PurePath
+from tempfile import TemporaryDirectory
+from types import TracebackType
 from typing import (
-    cast,
     Dict,
     FrozenSet,
     Iterator,
-    List,
     Optional,
     Sequence,
     Set,
-    Union,
+    TextIO,
+    Tuple,
+    Type,
 )
 
-import mypy.build
-import mypy.defaults
-import mypy.nodes
-import mypy.types
-from inflection import dasherize, underscore
 from mypy.find_sources import create_source_list
 from mypy.modulefinder import BuildSource
-from mypy.nodes import (
-    AssignmentStmt,
-    ClassDef,
-    Decorator,
-    ExpressionStmt,
-    FuncDef,
-    MypyFile,
-    NameExpr,
-    StrExpr,
-)
 from mypy.options import Options
-from mypy.traverser import ExtendedTraverserVisitor
-from mypy.type_visitor import TypeVisitor
 
 from docc.build import Builder
 from docc.discover import Discover, T
 from docc.document import Document, Node, Visit, Visitor
-from docc.languages import python, verbatim
-from docc.languages.verbatim import Pos
-from docc.plugins.references import Definition, Reference
 from docc.references import Index
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
@@ -95,7 +79,10 @@ class MyPyDiscover(Discover):
         Uses mypy's `create_source_list` to find sources.
         """
         options = Options()
-        options.python_version = mypy.defaults.PYTHON3_VERSION
+        options.python_version = (
+            sys.version_info.major,
+            sys.version_info.minor,
+        )
         options.export_types = True
         options.preserve_asts = True
         options.show_column_numbers = True
@@ -135,36 +122,27 @@ class MyPySource(TextSource):
         """
         return self._relative_path
 
-    def lines(self) -> int:
+    def open(self) -> TextIO:
         """
-        Get the total number of lines in this Source.
-        """
-        assert self.build_source.path is not None
-
-        # TODO: Don't reopen and reread the file every time...
-        with open(self.build_source.path, "r") as f:
-            return len(list(f))
-
-    def line(self, number: int) -> str:
-        """
-        Extract a line of text from the source.
+        Open the source for reading.
         """
         assert self.build_source.path is not None
-
-        # TODO: Don't reopen and reread the file every time...
-        with open(self.build_source.path, "r") as f:
-            return list(f)[number - 1]
+        return open(self.build_source.path, "r")
 
 
 class MyPyBuilder(Builder):
-    """
-    A Builder based on mypy.
-    """
-
+    _exit_stack: Optional[ExitStack]
+    _process: Optional[subprocess.Popen]
+    _status_directory: Optional[TemporaryDirectory]
     settings: PluginSettings
 
     def __init__(self, config: PluginSettings) -> None:
-        super().__init__(config)
+        """
+        Create a MyPyBuilder with the given configuration.
+        """
+        self._exit_stack = None
+        self._process = None
+        self._status_directory = None
         self.settings = config
 
     def build(
@@ -175,490 +153,128 @@ class MyPyBuilder(Builder):
         processed: Dict[Source, Document],
     ) -> None:
         """
-        Process MyPySources into Documents.
+        Passes collected sources to dmypy.
         """
-        source_set = set(s for s in unprocessed if isinstance(s, MyPySource))
-        unprocessed -= source_set
-        build_sources = [x.build_source for x in source_set]
-
-        source_map = {}
-        for source in source_set:
-            if source.relative_path is None:
-                continue
-            absolute_path = self.settings.resolve_path(source.relative_path)
-            absolute_path = Path(absolute_path).resolve()
-            source_map[absolute_path] = source
-
-        options = Options()
-        options.python_version = (
-            sys.version_info.major,
-            sys.version_info.minor,
-        )
-        options.export_types = True
-        options.preserve_asts = True
-        options.show_column_numbers = True
-        result = mypy.build.build(sources=build_sources, options=options)
-
-        if result.errors:
-            # TODO: Report errors better.
-            raise Exception("mypy build has errors: " + str(result.errors))
-
-        for name, state in result.graph.items():
-            if state.abspath is None:
-                if state.path is None:
-                    continue
-
-                absolute_path = self.settings.resolve_path(Path(state.path))
-            else:
-                absolute_path = Path(state.abspath)
-
-            absolute_path = absolute_path.resolve()
-
-            try:
-                source = source_map.pop(absolute_path)
-            except KeyError:
+        paths = set()
+        for source, document in processed.items():
+            if not source.relative_path:
                 continue
 
-            assert source not in processed
-            assert state.tree is not None, f"missing state tree for `{name}`"
-
-            processed[source] = Document(
-                all_sources, index, source, MyPyNode(result, state.tree)
-            )
-
-        assert 0 == len(source_map)
-
-
-class _ClassDefsVisitor(Visitor):
-    def __init__(self, class_: python.Class) -> None:
-        pass  # TODO
-
-    def enter(self, any_node: Node) -> Visit:
-        return Visit.SkipChildren  # TODO
-
-    def exit(self, any_node: Node) -> None:
-        pass  # TODO
-
-
-class _VerbatimVisitor(Visitor):
-    root: verbatim.Verbatim
-    stack: List[Node]
-
-    def __init__(self, source: MyPySource) -> None:
-        stanza = verbatim.Stanza(source)
-
-        self.stack = [stanza]
-        self.root = verbatim.Verbatim()
-        self.root.append(stanza)
-
-    def enter(self, node: Node) -> Visit:
-        new_node = node
-        if isinstance(node, MyPyNode):
-            start = Pos(
-                line=max(node.start.line, 1),
-                column=max(node.start.column, 0),
-            )
-
-            assert node.end is not None
-
-            name = dasherize(underscore(node.node.__class__.__name__))
-            new_node = verbatim.Fragment(
-                start=start,
-                end=node.end,
-                highlights=[name],
-            )
-
-        if isinstance(self.stack[-1], verbatim.VerbatimNode):
-            self.stack[-1].append(new_node)
-        else:
-            self.stack[-1].replace_child(node, new_node)
-
-        self.stack.append(new_node)
-        return Visit.TraverseChildren
-
-    def exit(self, node: Node) -> None:
-        self.stack.pop()
-
-
-@dataclass
-class _TransformContext:
-    node: "MyPyNode"
-    child_offset: int = 0
-
-
-class _LastVisitor(Visitor):
-    last: Optional["MyPyNode"]
-
-    def enter(self, node: Node) -> Visit:
-        if isinstance(node, MyPyNode):
-            self.last = node
-        return Visit.TraverseChildren
-
-    def exit(self, node: Node) -> None:
-        pass
-
-
-class _FixPositionVisitor(Visitor):
-    full_stack: List["Node"]
-    stack: List["MyPyNode"]
-
-    def __init__(self) -> None:
-        self.full_stack = []
-        self.stack = []
-
-    def enter(self, node: Node) -> Visit:
-        self.full_stack.append(node)
-
-        if not isinstance(node, MyPyNode):
-            return Visit.TraverseChildren
-
-        if len(self.full_stack) > 1:
-            siblings = list(self.full_stack[-2].children)
-            my_index = siblings.index(node)
-            if my_index > 0:
-                previous = siblings[my_index - 1]
-                if isinstance(previous, MyPyNode) and previous.end is None:
-                    # TODO: trim whitespace?
-                    print(f"\tsibling {previous} to {node.start}")
-                    previous.end = node.start
-
-        if node.end is not None:
-            for ancestor in self.stack:
-                if None in (ancestor.node.end_line, ancestor.node.end_column):
-                    if ancestor.end is None or node.end > ancestor.end:
-                        print(f"\tancestor {ancestor} to {node.end}")
-                        ancestor.end = node.end
-        print()
-
-        self.stack.append(node)
-        return Visit.TraverseChildren
-
-    def exit(self, node: Node) -> None:
-        self.full_stack.pop()
-
-        if not isinstance(node, MyPyNode):
-            return
-
-        print(f"exit {node}\n")
-        self.stack.pop()
-
-
-class _FixLastChildPositionVisitor(Visitor):
-    most_recent: List[Pos]
-
-    def __init__(self) -> None:
-        self.most_recent = []
-
-    def enter(self, node: Node) -> Visit:
-        if isinstance(node, MyPyNode) and node.end is not None:
-            self.most_recent.append(node.end)
-            most_recent = node.end
-        else:
-            try:
-                most_recent = self.most_recent[-1]
-            except IndexError:
-                most_recent = None
-
-        last_child = None
-        for last_child in node.children:
-            pass
-        if last_child is None:
-            return Visit.TraverseChildren
-
-        if isinstance(last_child, MyPyNode) and last_child.end is None:
-            print(f"last child {last_child} to {most_recent}")
-            last_child.end = most_recent
-
-        return Visit.TraverseChildren
-
-    def exit(self, node: Node) -> None:
-        if isinstance(node, MyPyNode) and node.end is not None:
-            self.most_recent.pop()
-
-
-class _UpdateMyPyPosition(Visitor):
-    def enter(self, node: Node) -> Visit:
-        if isinstance(node, MyPyNode) and node.end is not None:
-            if None in (node.node.end_line, node.node.end_column):
-                node.node.end_line = node.end.line
-                node.node.end_column = node.end.column
-
-        return Visit.TraverseChildren
-
-    def exit(self, node: Node) -> None:
-        pass
-
-
-class _TransformVisitor(Visitor):
-    root: Optional[Node]
-    old_stack: List[_TransformContext]
-    new_stack: List[Node]
-    document: Document
-    source_paths: Set[str]
-
-    def __init__(self, document: Document, source_paths: Set[str]) -> None:
-        self.root = None
-        self.old_stack = []
-        self.new_stack = []
-        self.document = document
-        self.source_paths = source_paths
-
-    def push_new(self, node: Node) -> None:
-        if self.root is None:
-            assert 0 == len(self.new_stack)
-            self.root = node
-        self.new_stack.append(node)
-
-    def enter_file(self, node: Node, file: MypyFile) -> Visit:
-        assert 0 == len(self.new_stack)
-        self.push_new(python.Module())
-        return Visit.TraverseChildren
-
-    def exit_file(self) -> None:
-        self.new_stack.pop()
-
-    def enter_expression_stmt(
-        self, node: Node, expr_stmt: ExpressionStmt
-    ) -> Visit:
-        old_parent = self.old_stack[-1]
-        if isinstance(expr_stmt.expr, StrExpr):
-            if isinstance(old_parent.node.node, MypyFile):
-                if old_parent.child_offset == 0:
-                    # It's a module docstring!
-                    return Visit.TraverseChildren
-
-        return Visit.SkipChildren
-
-    def exit_expression_stmt(self) -> None:
-        pass
-
-    def enter_str_expr(self, node: Node, str_expr: StrExpr) -> Visit:
-        parent = self.old_stack[-1].node.node
-        grandparent = self.old_stack[-2].node.node
-
-        if not isinstance(parent, ExpressionStmt):
-            raise NotImplementedError()  # TODO
-
-        if not isinstance(grandparent, MypyFile):
-            raise NotImplementedError()  # TODO
-
-        docstring_node = getattr(self.new_stack[-1], "docstring", None)
-
-        if docstring_node:
-            new = python.Docstring(text=str_expr.value)
-            self.new_stack[-1].replace_child(docstring_node, new)
-
-        return Visit.SkipChildren
-
-    def exit_str_expr(self) -> None:
-        pass
-
-    def enter_decorator(self, node: "MyPyNode", decorator: Decorator) -> Visit:
-        assert isinstance(self.document.source, MyPySource)
-        func_def = MyPyNode(node._build, decorator.func)
-
-        visitor = _TransformVisitor(self.document, self.source_paths)
-        func_def.visit(visitor)
-        assert isinstance(visitor.root, python.Function)
-        assert isinstance(visitor.root.decorators, list)
-
-        # TODO: `abc.abstractmethod` is not a decorator in mypy.
-        # TODO: `builtins.property` is not a decorator in mypy.
-
-        for expression in decorator.decorators:
-            verbatim = _VerbatimVisitor(self.document.source)
-            MyPyNode(node._build, expression).visit(verbatim)
-            visitor.root.decorators.append(verbatim.root)
-
-        try:
-            parent = self.new_stack[-1]
-        except IndexError:
-            parent = None
-
-        if parent is not None:
-            if hasattr(parent, "members"):
-                if isinstance(parent.members, list):
-                    parent.members.append(visitor.root)
-
-        self.push_new(visitor.root)
-
-        return Visit.SkipChildren
-
-    def exit_decorator(self) -> None:
-        self.new_stack.pop()
-
-    def enter_class_def(self, node: "MyPyNode", class_def: ClassDef) -> Visit:
-        name = python.Name(name=class_def.name, full_name=class_def.fullname)
-        class_ = python.Class(name=name)
-        definition = Definition(identifier=class_def.fullname, child=class_)
-
-        try:
-            parent = self.new_stack[-1]
-        except IndexError:
-            parent = None
-
-        if parent is not None:
-            if hasattr(parent, "members"):
-                if isinstance(parent.members, list):
-                    parent.members.append(definition)
-
-        self.push_new(class_)
-
-        # TODO: class_def.metaclass
-        # TODO: class_def.decorators
-        # TODO: class_def.info (base types, etc)
-
-        visitor = _ClassDefsVisitor(class_)
-        MyPyNode(node._build, class_def.defs).visit(visitor)
-
-        return Visit.SkipChildren
-
-    def exit_class_def(self) -> None:
-        self.new_stack.pop()
-
-    def enter_func_def(self, node: "MyPyNode", func_def: FuncDef) -> Visit:
-        assert isinstance(self.document.source, MyPySource)
-
-        name = python.Name(name=func_def.name, full_name=func_def.fullname)
-        func = python.Function(name=name)
-        definition = Definition(identifier=func_def.fullname, child=func)
-
-        try:
-            parent = self.new_stack[-1]
-        except IndexError:
-            parent = None
-
-        if parent is not None:
-            if hasattr(parent, "members"):
-                if isinstance(parent.members, list):
-                    parent.members.append(definition)
-
-        self.push_new(func)
-
-        # TODO: arguments
-
-        if func_def.type:
-            assert isinstance(func_def.type, mypy.types.CallableType)
-            type_visitor = _TypeVisitor(self.source_paths, node._build)
-            func_def.type.ret_type.accept(type_visitor)
-            assert type_visitor.root is not None
-            func.return_type = type_visitor.root
-
-        visitor = _VerbatimVisitor(self.document.source)
-        MyPyNode(node._build, func_def.body).visit(visitor)
-        func.body = visitor.root
-
-        return Visit.SkipChildren
-
-    def exit_func_def(self) -> None:
-        self.new_stack.pop()
-
-    def enter_assignment_stmt(
-        self, mypy: "MyPyNode", node: AssignmentStmt
-    ) -> Visit:
-        names = []
-
-        for name in node.lvalues:
-            if not isinstance(name, NameExpr):
-                logging.debug("skipping assignment %s", node)
-                return Visit.SkipChildren
-            python_name = python.Name(name=name.name, full_name=name.fullname)
-            names.append(python_name)
-
-        # TODO: Convert lvalue to a non-mypy type.
-        attribute = python.Attribute(
-            names=names, value=MyPyNode(mypy._build, node.rvalue)
+            if source.relative_path.suffix != ".py":
+                continue
+
+            paths.add(str(self.settings.resolve_path(source.relative_path)))
+            root = MyPyDaemonNode(self, document.root)
+            document.root = root
+
+        if paths:
+            self._dmypy(["check", "--export-types"] + list(paths))
+
+    def _dmypy(self, args: Sequence[str]) -> str:
+        assert self._status_directory is not None
+        assert self._process is not None
+
+        polled = self._process.poll()
+        if polled is not None:
+            raise Exception(f"dmypy exited unexpectedly: {polled}")
+
+        result = subprocess.run(
+            [
+                "dmypy",
+                "--status-file",
+                os.path.join(self._status_directory.name, ".dmypy.json"),
+            ]
+            + list(args),
+            check=True,
+            stdout=subprocess.PIPE,
+            text=True,
         )
 
-        try:
-            parent = self.new_stack[-1]
-        except IndexError:
-            parent = None
+        return result.stdout
 
-        if parent is not None:
-            if hasattr(parent, "members"):
-                if isinstance(parent.members, list):
-                    parent.members.append(attribute)
-                    return Visit.SkipChildren
+    def __enter__(self) -> "MyPyBuilder":
+        assert self._exit_stack is None
+        assert self._process is None
+        assert self._status_directory is None
 
-        raise Exception("unexpected assignment")
-
-    def exit_assignment_stmt(self) -> None:
-        pass
-
-    def enter(self, any_node: Node) -> Visit:
-        if not isinstance(any_node, MyPyNode):
-            raise ValueError(
-                "expected `"
-                + MyPyNode.__name__
-                + "` but got `"
-                + any_node.__class__.__name__
-                + "`"
+        with ExitStack() as exit_stack:
+            self._status_directory = TemporaryDirectory()
+            status_file = os.path.join(
+                exit_stack.enter_context(self._status_directory), ".dmypy.json"
             )
 
-        node = any_node.node
+            self._process = subprocess.Popen(
+                [
+                    "dmypy",
+                    "--status-file",
+                    status_file,
+                    "daemon",
+                    "--",
+                    "--check-untyped-defs",
+                    "--ignore-missing-imports",
+                ]
+            )
+
+            exit_stack.enter_context(self._process)
+
+            while not os.path.exists(status_file):
+                time.sleep(0.1)
+                result = self._process.poll()
+                if result is not None:
+                    raise Exception(f"dmypy exited early: {result}")
+
+            self._exit_stack = exit_stack.pop_all()
+
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        assert self._exit_stack is not None
+        assert self._process is not None
+        assert self._status_directory is not None
+
         try:
-            parent = self.old_stack[-1].node.node
-        except IndexError:
-            parent = None
+            self._dmypy(["stop"])
+        finally:
+            self._exit_stack.close()
+            self._exit_stack = None
+            self._process = None
+            self._status_directory = None
 
-        module_member = isinstance(parent, MypyFile)
 
-        visit: Visit
+class MyPyDaemonNode(Node):
+    child: Node
+    _build: MyPyBuilder
 
-        if isinstance(node, MypyFile):
-            visit = self.enter_file(any_node, node)
-        elif isinstance(node, ExpressionStmt):
-            visit = self.enter_expression_stmt(any_node, node)
-        elif isinstance(node, StrExpr):
-            visit = self.enter_str_expr(any_node, node)
-        elif isinstance(node, Decorator):
-            visit = self.enter_decorator(any_node, node)
-        elif isinstance(node, ClassDef):
-            visit = self.enter_class_def(any_node, node)
-        elif isinstance(node, FuncDef):
-            visit = self.enter_func_def(any_node, node)
-        elif isinstance(node, AssignmentStmt):
-            visit = self.enter_assignment_stmt(any_node, node)
-        elif module_member and isinstance(node, mypy.nodes.Node):
-            logging.debug("skipping module member node %s", node)
-            visit = Visit.SkipChildren
-        else:
-            raise Exception(f"unknown node type {node}")
+    def __init__(self, build: MyPyBuilder, child: Node) -> None:
+        self.child = child
+        self._build = build
 
-        self.old_stack.append(_TransformContext(node=any_node))
+    @property
+    def children(self) -> Tuple[Node]:
+        return (self.child,)
 
-        return visit
+    def replace_child(self, old: Node, new: Node) -> None:
+        if self.child == old:
+            self.child = new
 
-    def exit(self, any_node: Node) -> None:
-        module_member = False
 
-        self.old_stack.pop()
-        if self.old_stack:
-            self.old_stack[-1].child_offset += 1
-            module_member = isinstance(self.old_stack[-1].node.node, MypyFile)
+class _Visitor(Visitor):
+    build: MyPyBuilder
 
-        assert isinstance(any_node, MyPyNode)
-        node = any_node.node
+    def __init__(self, build: MyPyBuilder) -> None:
+        self.build = build
 
-        if isinstance(node, MypyFile):
-            self.exit_file()
-        elif isinstance(node, ExpressionStmt):
-            self.exit_expression_stmt()
-        elif isinstance(node, StrExpr):
-            self.exit_str_expr()
-        elif isinstance(node, ClassDef):
-            self.exit_class_def()
-        elif isinstance(node, Decorator):
-            self.exit_decorator()
-        elif isinstance(node, FuncDef):
-            self.exit_func_def()
-        elif isinstance(node, AssignmentStmt):
-            self.exit_assignment_stmt()
-        elif module_member and isinstance(node, mypy.nodes.Node):
-            pass
-        else:
-            raise Exception(f"unknown node type {node}")
+    def enter(self, node: Node) -> Visit:
+        # TODO
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass  # TODO
 
 
 class MyPyTransform(Transform):
@@ -667,280 +283,16 @@ class MyPyTransform(Transform):
     """
 
     def __init__(self, config: PluginSettings) -> None:
-        super().__init__(config)
-        self.settings = config
+        pass
 
     def transform(self, document: Document) -> None:
         """
         Apply the transformation to the given document.
         """
-        assert isinstance(document.source, TextSource)
-        last = _LastVisitor()
-        document.root.visit(last)
-
-        if last.last and last.last.end is None:
-            # TODO: Trim whitespace
-            lines = document.source.lines()
-            last.last.end = Pos(
-                line=lines, column=len(document.source.line(lines))
-            )
-
-        fix = _FixPositionVisitor()
-        document.root.visit(fix)
-
-        fix_last_child = _FixLastChildPositionVisitor()
-        document.root.visit(fix_last_child)
-
-        repair = _UpdateMyPyPosition()
-        document.root.visit(repair)
-
-        mypy_sources = (
-            x for x in document.all_sources if isinstance(x, MyPySource)
-        )
-
-        source_paths = set(
-            x.build_source.path
-            for x in mypy_sources
-            if x.build_source.path is not None
-        )
-        visitor = _TransformVisitor(document, source_paths)
-        try:
-            document.root.visit(visitor)
-        except NotImplementedError:
-            logging.exception("unsupported node")  # TODO: Don't catch this.
-        assert visitor.root is not None
-        document.root = visitor.root
-
-
-class _ChildrenVisitor(ExtendedTraverserVisitor):
-    # I'm using ExtendedTraverserVisitor as a base class here instead of
-    # NodeVisitor because ExtendedTraverserVisitor gives us a single `visit`
-    # method that's called for all node types, instead of having to override
-    # NodeVisitor's concrete methods. I hope this'll be more resilient against
-    # mypy's internals changing.
-
-    depth: int
-    children: List[mypy.nodes.Node]
-
-    def __init__(self) -> None:
-        self.depth = 0
-        self.children = []
-
-    def visit(self, o: mypy.nodes.Node) -> bool:
-        if self.depth == 0:
-            self.depth += 1
-            return True
-
-        self.children.append(o)
-        return False
-
-
-class _TypeVisitor(TypeVisitor[None]):
-    root: Optional[python.Type]
-    stack: List[python.Type]
-    build: mypy.build.BuildResult
-    source_paths: Set[str]
-
-    def __init__(
-        self, source_paths: Set[str], build: mypy.build.BuildResult
-    ) -> None:
-        self.root = None
-        self.stack = []
-        self.build = build
-
-        self.source_paths = source_paths
-
-    def push(self, type_: python.Type) -> None:
-        if self.root is None:
-            assert not self.stack
-            self.root = type_
-            self.stack.append(type_)
+        root = document.root
+        if not isinstance(root, MyPyDaemonNode):
             return
+        document.root = root.child
 
-        assert 0 < len(self.stack)
-        assert isinstance(self.stack[-1].generics, python.Generics)
-        assert isinstance(self.stack[-1].generics.arguments, list)
-        self.stack[-1].generics.arguments.append(type_)
-        self.stack.append(type_)
-
-    def pop(self) -> None:
-        self.stack.pop()
-
-    def push_leaf(self, type_: python.Type) -> None:
-        self.push(type_)
-        self.pop()
-
-    def visit_unbound_type(self, t: mypy.types.UnboundType) -> None:
-        raise NotImplementedError()
-
-    def visit_any(self, t: mypy.types.AnyType) -> None:
-        # TODO: is `typing.Any` always the correct full_name?
-        name = python.Name("Any", None)
-        type_ = python.Type(name=name)
-        self.push_leaf(type_)
-
-    def visit_none_type(self, t: mypy.types.NoneType) -> None:
-        # TODO: What is the correct full_name?
-        name = python.Name("None", None)
-        type_ = python.Type(name=name)
-        self.push_leaf(type_)
-
-    def visit_uninhabited_type(self, t: mypy.types.UninhabitedType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_erased_type(self, t: mypy.types.ErasedType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_deleted_type(self, t: mypy.types.DeletedType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_type_var(self, t: mypy.types.TypeVarType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_param_spec(self, t: mypy.types.ParamSpecType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_parameters(self, t: mypy.types.Parameters) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_type_var_tuple(self, t: mypy.types.TypeVarTupleType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_instance(self, t: mypy.types.Instance) -> None:
-        full_name = t.type_ref if t.type_ref is not None else t.type.fullname
-        name: Node = python.Name(name=t.type.name, full_name=full_name)
-
-        try:
-            source_path = self.build.files[t.type.module_name].path
-        except IndexError:
-            source_path = None
-
-        if source_path in self.source_paths:
-            name = Reference(identifier=full_name, child=name)
-
-        if not t.args:
-            self.push_leaf(python.Type(name=name))
-            return
-
-        generics = python.Generics()
-        type_ = python.Type(name=name, generics=generics)
-        self.push(type_)
-
-        for argument in t.args:
-            argument.accept(self)
-
-        self.pop()
-
-    def visit_callable_type(self, t: mypy.types.CallableType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_overloaded(self, t: mypy.types.Overloaded) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_tuple_type(self, t: mypy.types.TupleType) -> None:
-        # TODO: is `typing.Tuple` always the correct full_name?
-        name = python.Name(name="Tuple", full_name="typing.Tuple")
-        generics = python.Generics()
-        type_ = python.Type(name=name, generics=generics)
-        self.push(type_)
-
-        for item in t.items:
-            item.accept(self)
-
-        self.pop()
-
-    def visit_typeddict_type(self, t: mypy.types.TypedDictType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_literal_type(self, t: mypy.types.LiteralType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_union_type(self, t: mypy.types.UnionType) -> None:
-        # TODO: is `typing.Union` always the correct full_name?
-        name = python.Name(name="Union", full_name="typing.Union")
-        generics = python.Generics()
-        type_ = python.Type(name=name, generics=generics)
-        self.push(type_)
-
-        for item in t.items:
-            item.accept(self)
-
-        self.pop()
-
-    def visit_partial_type(self, t: mypy.types.PartialType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_type_type(self, t: mypy.types.TypeType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_type_alias_type(self, t: mypy.types.TypeAliasType) -> None:
-        raise NotImplementedError(repr(t))
-
-    def visit_unpack_type(self, t: mypy.types.UnpackType) -> None:
-        raise NotImplementedError(repr(t))
-
-
-class MyPyNode(Node):
-    """
-    A wrapper around a mypy tree node.
-    """
-
-    __slots__ = ("node", "_children", "_build", "start", "end")
-
-    node: mypy.nodes.Node
-
-    start: Pos
-    end: Optional[Pos]
-
-    _children: Union[List[Node], Iterator[Node]]
-    _build: mypy.build.BuildResult
-
-    def __init__(self, build: mypy.build.BuildResult, node: mypy.nodes.Node):
-        self.node = node
-
-        self.start = Pos(line=node.line, column=node.column)
-
-        self.end = None
-        if node.end_line is not None and node.end_column is not None:
-            self.end = Pos(line=node.end_line, column=node.end_column)
-
-        visitor = _ChildrenVisitor()
-        self.node.accept(visitor)
-        self._build = build
-        self._children = sorted(
-            (MyPyNode(build, n) for n in visitor.children),
-            key=lambda m: cast(MyPyNode, m).start
-        )
-
-    @property
-    def children(self) -> List[Node]:
-        """
-        Child nodes belonging to this node.
-        """
-        if not isinstance(self._children, list):
-            self._children = list(self._children)
-        return self._children
-
-    def replace_child(self, old: Node, new: Node) -> None:
-        """
-        Replace the old node with the given new node.
-        """
-        self._children = [
-            new if child == old else child for child in self.children
-        ]
-
-    def __repr__(self) -> str:
-        """
-        Represent this node as a string.
-        """
-        arguments = "..."
-        if hasattr(self.node, "name"):
-            arguments = f"name={self.node.name!r}, {arguments}"
-
-        rest = f", start={self.start!r}"
-        if self.end:
-            rest = f"{rest}, end={self.end!r}"
-
-        my_name = self.__class__.__name__
-        inner_name = self.node.__class__.__name__
-        return f"{my_name}({inner_name}({arguments}){rest})"
+        visitor = _Visitor(root._build)
+        document.root.visit(visitor)

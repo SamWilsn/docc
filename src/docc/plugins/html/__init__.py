@@ -509,6 +509,17 @@ def python_generics(
     return _render_template(document, "python/generics.html", generics)
 
 
+def blank_node(
+    document: Any,
+    blank: Any,
+) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    """
+    Render a blank node.
+    """
+    assert isinstance(blank, BlankNode)
+    return (Visit.TraverseChildren, [])
+
+
 class _VerbatimVisitor(verbatim.VerbatimVisitor):
     root: HTMLTag
     body: HTMLTag

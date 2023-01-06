@@ -19,7 +19,7 @@ Sources are the inputs for documentation generation.
 
 from abc import ABC, abstractmethod
 from pathlib import PurePath
-from typing import Optional
+from typing import Optional, TextIO
 
 
 class Source(ABC):
@@ -63,13 +63,16 @@ class TextSource(Source):
     """
 
     @abstractmethod
-    def line(self, line: int) -> str:
+    def open(self) -> TextIO:
+        """
+        Open the source for reading.
+        """
+
+    def line(self, number: int) -> str:
         """
         Extract a line of text from the source.
         """
 
-    @abstractmethod
-    def lines(self) -> int:
-        """
-        Get the total number of lines in this Source.
-        """
+        # TODO: Don't reopen and reread the file every time...
+        with self.open() as f:
+            return list(f)[number - 1]

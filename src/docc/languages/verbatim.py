@@ -75,7 +75,7 @@ class _Pos:
     column: int
 
 
-@dataclass(order=True, frozen=True)
+@dataclass(order=True, frozen=True, repr=False)
 class Pos:
     """
     Position in a Source.
@@ -85,6 +85,9 @@ class Pos:
 
     line: int
     column: int
+
+    def __repr__(self) -> str:
+        return f"{self.line}:{self.column}"
 
 
 class Verbatim(VerbatimNode):

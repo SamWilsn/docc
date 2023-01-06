@@ -18,7 +18,9 @@ Builders convert Sources into Documents.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Sequence, Set, Tuple
+from contextlib import AbstractContextManager
+from types import TracebackType
+from typing import Dict, Iterator, Optional, Sequence, Set, Tuple, Type
 
 from .document import Document
 from .plugins.loader import Loader
@@ -27,7 +29,7 @@ from .settings import PluginSettings, Settings
 from .source import Source
 
 
-class Builder(ABC):
+class Builder(AbstractContextManager, ABC):
     """
     Consumes unprocessed Sources and creates Documents.
     """
@@ -52,18 +54,22 @@ class Builder(ABC):
         """
         pass
 
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        pass
 
-def load(settings: Settings) -> Sequence[Tuple[str, Builder]]:
+
+def load(settings: Settings) -> Iterator[Tuple[str, Builder]]:
     """
     Load the builder plugins as requested in settings.
     """
     loader = Loader()
 
-    sources = []
-
     for name in settings.build:
         class_ = loader.load(Builder, name)
         plugin_settings = settings.for_plugin(name)
-        sources.append((name, class_(plugin_settings)))
-
-    return sources
+        yield (name, class_(plugin_settings))
