@@ -94,6 +94,7 @@ class Class(PythonNode):
     name: Node = dataclasses.field(default_factory=BlankNode)
     bases: Sequence[Node] = dataclasses.field(default_factory=list)
     metaclass: Node = dataclasses.field(default_factory=BlankNode)
+    docstring: Node = dataclasses.field(default_factory=BlankNode)
     members: Sequence[Node] = dataclasses.field(default_factory=list)
 
 

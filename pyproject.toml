@@ -12,22 +12,22 @@ line-length = 79
 
 [tool.docc]
 discovery = [
-    "docc.mypy.discover",
+    "docc.cst.discover",
 ]
 
 build = [
+    "docc.cst.parse",
     "docc.cst.build",
-    "docc.mypy.build",
 ]
 
 transform = [
-    "docc.mypy.transform",
+    "docc.cst.annotate",
     "docc.cst.transform",
     "docc.references.index",
     "docc.html",
 ]
 
-[tool.docc.plugins."docc.mypy.discover"]
+[tool.docc.plugins."docc.cst.discover"]
 paths = [
     "src",
 ]
