@@ -17,6 +17,8 @@
 Documentation plugin for Python.
 """
 
+import itertools
+import glob
 import logging
 import os.path
 import subprocess
@@ -43,9 +45,6 @@ from typing import (
 import libcst as cst
 from inflection import dasherize, underscore
 from libcst.metadata import MetadataWrapper
-from mypy.find_sources import create_source_list
-from mypy.modulefinder import BuildSource
-from mypy.options import Options
 
 from docc.build import Builder
 from docc.discover import Discover, T
@@ -58,9 +57,9 @@ from docc.source import Source, TextSource
 from docc.transform import Transform
 
 
-class MyPyDiscover(Discover):
+class PythonDiscover(Discover):
     """
-    Source discovery based on mypy.
+    Find Python source files.
     """
 
     paths: Sequence[str]
@@ -72,49 +71,44 @@ class MyPyDiscover(Discover):
 
         paths = config.get("paths", [])
         if not isinstance(paths, Sequence):
-            raise TypeError("mypy paths must be a list")
+            raise TypeError("python paths must be a list")
 
         if any(not isinstance(path, str) for path in paths):
-            raise TypeError("every mypy path must be a string")
+            raise TypeError("every python path must be a string")
 
         if not paths:
-            raise ValueError("mypy needs at least one path")
+            raise ValueError("python needs at least one path")
 
         self.paths = [str(config.resolve_path(path)) for path in paths]
 
     def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
         """
-        Uses mypy's `create_source_list` to find sources.
+        Find sources.
         """
-        options = Options()
-        options.python_version = (
-            sys.version_info.major,
-            sys.version_info.minor,
-        )
-        options.export_types = True
-        options.preserve_asts = True
-        options.show_column_numbers = True
-        for build_source in create_source_list(self.paths, options):
-            relative_path = None
-            assert build_source.path is not None
-            path = PurePath(build_source.path)
-            relative_path = self.settings.unresolve_path(path)
-            yield MyPySource(relative_path, build_source)
+        escaped = (glob.escape(path) for path in self.paths)
+        joined = (os.path.join(path, "**", "*.py") for path in escaped)
+        globbed = (glob.glob(path, recursive=True) for path in joined)
+
+        for absolute_path_text in itertools.chain.from_iterable(globbed):
+            absolute_path = PurePath(absolute_path_text)
+            relative_path = self.settings.unresolve_path(absolute_path)
+
+            yield PythonSource(relative_path, absolute_path)
 
 
-class MyPySource(TextSource):
+class PythonSource(TextSource):
     """
-    A Source based on mypy.
+    A Source representing a Python file.
     """
 
-    build_source: BuildSource
+    absolute_path: PurePath
     _relative_path: PurePath
 
     def __init__(
-        self, relative_path: PurePath, build_source: BuildSource
+        self, relative_path: PurePath, absolute_path: PurePath
     ) -> None:
-        self.build_source = build_source
         self._relative_path = relative_path
+        self.absolute_path = absolute_path
 
     @property
     def relative_path(self) -> Optional[PurePath]:
@@ -134,207 +128,13 @@ class MyPySource(TextSource):
         """
         Open the source for reading.
         """
-        assert self.build_source.path is not None
-        return open(self.build_source.path, "r")
+        return open(self.absolute_path, "r")
 
 
-class MyPyBuilder(Builder):
-    _exit_stack: Optional[ExitStack]
-    _process: Optional[subprocess.Popen]
-    _status_directory: Optional[TemporaryDirectory]
-    settings: PluginSettings
-
+class PythonBuilder(Builder):
     def __init__(self, config: PluginSettings) -> None:
         """
-        Create a MyPyBuilder with the given configuration.
-        """
-        self._exit_stack = None
-        self._process = None
-        self._status_directory = None
-        self.settings = config
-
-    def build(
-        self,
-        index: Index,
-        all_sources: Sequence[Source],
-        unprocessed: Set[Source],
-        processed: Dict[Source, Document],
-    ) -> None:
-        """
-        Passes collected sources to dmypy.
-        """
-        paths = set()
-        for source, document in processed.items():
-            if not source.relative_path:
-                continue
-
-            if source.relative_path.suffix != ".py":
-                continue
-
-            paths.add(str(self.settings.resolve_path(source.relative_path)))
-            root = MyPyDaemonNode(self, document.root)
-            document.root = root
-
-        if paths:
-            self._dmypy(["check", "--export-types"] + list(paths), check=False)
-
-    def attrs(self, source: Source, start: Pos, end: Pos) -> str:
-        assert source.relative_path is not None
-        return self._dmypy(
-            [
-                "inspect",
-                "--show",
-                "attrs",
-                "--include-span",
-                f"{source.relative_path}:{start}:{end}",
-            ]
-        )
-
-    def _dmypy(self, args: Sequence[str], check: bool = True) -> str:
-        assert self._status_directory is not None
-        assert self._process is not None
-
-        polled = self._process.poll()
-        if polled is not None:
-            raise Exception(f"dmypy exited unexpectedly: {polled}")
-
-        cmd = [
-            "dmypy",
-            "--status-file",
-            os.path.join(self._status_directory.name, ".dmypy.json"),
-        ] + list(args)
-
-        result = subprocess.run(
-            cmd,
-            check=check,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
-
-        try:
-            result.check_returncode()
-        except subprocess.CalledProcessError:
-            logging.warning(
-                "mypy command exited unsuccessfully: %r",
-                cmd,
-                exc_info=True,
-            )
-
-        return result.stdout
-
-    def __enter__(self) -> "MyPyBuilder":
-        assert self._exit_stack is None
-        assert self._process is None
-        assert self._status_directory is None
-
-        with ExitStack() as exit_stack:
-            self._status_directory = TemporaryDirectory()
-            status_file = os.path.join(
-                exit_stack.enter_context(self._status_directory), ".dmypy.json"
-            )
-
-            self._process = subprocess.Popen(
-                [
-                    "dmypy",
-                    "--status-file",
-                    status_file,
-                    "daemon",
-                    "--",
-                    "--ignore-missing-imports",
-                ]
-            )
-
-            exit_stack.enter_context(self._process)
-
-            while not os.path.exists(status_file):
-                time.sleep(0.1)
-                result = self._process.poll()
-                if result is not None:
-                    raise Exception(f"dmypy exited early: {result}")
-
-            self._exit_stack = exit_stack.pop_all()
-
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
-    ) -> None:
-        assert self._exit_stack is not None
-        assert self._process is not None
-        assert self._status_directory is not None
-
-        try:
-            self._dmypy(["stop"])
-        finally:
-            self._exit_stack.close()
-            self._exit_stack = None
-            self._process = None
-            self._status_directory = None
-
-
-class MyPyDaemonNode(Node):
-    child: Node
-    _build: MyPyBuilder
-
-    def __init__(self, build: MyPyBuilder, child: Node) -> None:
-        self.child = child
-        self._build = build
-
-    @property
-    def children(self) -> Tuple[Node]:
-        return (self.child,)
-
-    def replace_child(self, old: Node, new: Node) -> None:
-        if self.child == old:
-            self.child = new
-
-
-class _AnnotateVisitor(Visitor):
-    build: MyPyBuilder
-
-    def __init__(self, build: MyPyBuilder) -> None:
-        self.build = build
-
-    def enter(self, node: Node) -> Visit:
-        if not isinstance(node, CstNode):
-            return Visit.TraverseChildren
-
-        # TODO
-
-        return Visit.TraverseChildren
-
-    def exit(self, node: Node) -> None:
-        pass  # TODO
-
-
-class MyPyTransform(Transform):
-    """
-    Converts mypy nodes into Python language nodes.
-    """
-
-    def __init__(self, config: PluginSettings) -> None:
-        pass
-
-    def transform(self, document: Document) -> None:
-        """
-        Apply the transformation to the given document.
-        """
-        root = document.root
-        if not isinstance(root, MyPyDaemonNode):
-            return
-        document.root = root.child
-
-        visitor = _AnnotateVisitor(root._build)
-        document.root.visit(visitor)
-
-
-class CstBuilder(Builder):
-    def __init__(self, config: PluginSettings) -> None:
-        """
-        Create a CstBuilder with the given configuration.
+        Create a PythonBuilder with the given configuration.
         """
 
     def build(
@@ -452,11 +252,11 @@ class _CstVisitor(cst.CSTVisitor):
         self.stack.append(new)
         return True
 
-    def on_leave(self, node: cst.CSTNode) -> None:
+    def on_leave(self, original_node: cst.CSTNode) -> None:
         self.stack.pop()
 
 
-class CstTransform(Transform):
+class PythonTransform(Transform):
     """
     Transforms CstNode instances into Python language nodes.
     """
@@ -561,17 +361,17 @@ class _TransformVisitor(Visitor):
     def exit_function_def(self) -> None:
         self.new_stack.pop()
 
-    def enter(self, any_node: Node) -> Visit:
-        if not isinstance(any_node, CstNode):
+    def enter(self, node: Node) -> Visit:
+        if not isinstance(node, CstNode):
             raise ValueError(
                 "expected `"
                 + CstNode.__name__
                 + "` but got `"
-                + any_node.__class__.__name__
+                + node.__class__.__name__
                 + "`"
             )
 
-        node = any_node.cst_node
+        cst_node = node.cst_node
         try:
             parent = self.old_stack[-1].node.cst_node
         except IndexError:
@@ -581,23 +381,23 @@ class _TransformVisitor(Visitor):
 
         visit: Visit
 
-        if isinstance(node, cst.Module):
-            visit = self.enter_module(any_node, node)
-        elif isinstance(node, cst.ClassDef):
-            visit = self.enter_class_def(any_node, node)
-        elif isinstance(node, cst.FunctionDef):
-            visit = self.enter_function_def(any_node, node)
-        elif module_member and isinstance(node, cst.CSTNode):
-            logging.warning("skipping module member node %s", any_node)
+        if isinstance(cst_node, cst.Module):
+            visit = self.enter_module(node, cst_node)
+        elif isinstance(cst_node, cst.ClassDef):
+            visit = self.enter_class_def(node, cst_node)
+        elif isinstance(cst_node, cst.FunctionDef):
+            visit = self.enter_function_def(node, cst_node)
+        elif module_member and isinstance(cst_node, cst.CSTNode):
+            logging.warning("skipping module member node %s", node)
             visit = Visit.SkipChildren
         else:
             raise Exception(f"unknown node type {node}")
 
-        self.old_stack.append(_TransformContext(node=any_node))
+        self.old_stack.append(_TransformContext(node=node))
 
         return visit
 
-    def exit(self, any_node: Node) -> None:
+    def exit(self, node: Node) -> None:
         module_member = False
 
         self.old_stack.pop()
@@ -606,19 +406,19 @@ class _TransformVisitor(Visitor):
             parent = self.old_stack[-1].node.cst_node
             module_member = isinstance(parent, cst.Module)
 
-        assert isinstance(any_node, CstNode)
-        node = any_node.cst_node
+        assert isinstance(node, CstNode)
+        cst_node = node.cst_node
 
-        if isinstance(node, cst.Module):
+        if isinstance(cst_node, cst.Module):
             self.exit_module()
-        elif isinstance(node, cst.ClassDef):
+        elif isinstance(cst_node, cst.ClassDef):
             self.exit_class_def()
-        elif isinstance(node, cst.FunctionDef):
+        elif isinstance(cst_node, cst.FunctionDef):
             self.exit_function_def()
-        elif module_member and isinstance(node, cst.CSTNode):
+        elif module_member and isinstance(cst_node, cst.CSTNode):
             pass
         else:
-            raise Exception(f"unknown node type {node}")
+            raise Exception(f"unknown node type {cst_node}")
 
 
 class _VerbatimTransform(Visitor):

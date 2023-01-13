@@ -308,8 +308,9 @@ class HTMLVisitor(Visitor):
             )
 
         for tag in tags:
-            assert isinstance(self.stack[-1], (HTMLRoot, HTMLTag))
-            self.stack[-1].append(tag)
+            top = self.stack[-1]
+            assert isinstance(top, (HTMLRoot, HTMLTag))
+            top.append(tag)
 
         try:
             last = tags[-1]
@@ -356,16 +357,16 @@ class _HTMLParser(html.parser.HTMLParser):
         self.stack = [self.root]
 
     def handle_starttag(
-        self, tag_name: str, attributes: Sequence[Tuple[str, Optional[str]]]
+        self, tag: str, attrs: Sequence[Tuple[str, Optional[str]]]
     ) -> None:
-        tag = HTMLTag(tag_name, dict(attributes))
-        self.stack[-1].append(tag)
-        self.stack.append(tag)
+        element = HTMLTag(tag, dict(attrs))
+        self.stack[-1].append(element)
+        self.stack.append(element)
 
-    def handle_endtag(self, tag_name: str) -> None:
+    def handle_endtag(self, tag: str) -> None:
         ended = self.stack.pop()
         assert isinstance(ended, HTMLTag)
-        assert ended.tag_name == tag_name
+        assert ended.tag_name == tag
 
     def handle_data(self, data: str) -> None:
         self.stack[-1].append(TextNode(data))
@@ -379,7 +380,7 @@ class _HTMLParser(html.parser.HTMLParser):
     def handle_comment(self, data: str) -> None:
         raise NotImplementedError("HTML comments not yet supported")
 
-    def handle_decl(self, declaration: str) -> None:
+    def handle_decl(self, decl: str) -> None:
         raise NotImplementedError("HTML doctypes not yet supported")
 
     def handle_pi(self, data: str) -> None:
@@ -558,7 +559,8 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
 
     def _highlight(self, highlight_groups: Sequence[Sequence[str]]) -> None:
         for highlights in highlight_groups:
-            assert isinstance(self.node_stack[-1], HTMLTag)
+            top = self.node_stack[-1]
+            assert isinstance(top, HTMLTag)
 
             span = HTMLTag(
                 "span",
@@ -566,12 +568,13 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
                     "class": " ".join(f"hi-{h}" for h in highlights),
                 },
             )
-            self.node_stack[-1].append(span)
+            top.append(span)
             self.node_stack.append(span)
 
     def text(self, text: str) -> None:
-        assert isinstance(self.node_stack[-1], HTMLTag)
-        self.node_stack[-1].append(TextNode(text))
+        top = self.node_stack[-1]
+        assert isinstance(top, HTMLTag)
+        top.append(TextNode(text))
 
     def begin_highlight(self, highlights: Sequence[str]) -> None:
         self.highlights_stack.append(highlights)

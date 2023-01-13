@@ -25,7 +25,6 @@ markupsafe
 merchantability
 metaclass
 modulefinder
-mypy's
 param
 pathname2url
 renderer

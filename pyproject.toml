@@ -16,12 +16,10 @@ discovery = [
 ]
 
 build = [
-    "docc.cst.parse",
     "docc.cst.build",
 ]
 
 transform = [
-    "docc.cst.annotate",
     "docc.cst.transform",
     "docc.references.index",
     "docc.html",

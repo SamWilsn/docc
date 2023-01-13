@@ -214,58 +214,66 @@ class VerbatimVisitor(Visitor):
     #
 
     def _copy(self, node: Fragment, until: Pos) -> None:
-        assert self._stanza is not None
+        stanza = self._stanza
+
+        assert stanza is not None
         assert until.line > 0
         assert until.column >= 0
 
-        if self._stanza.written is None:
-            self._stanza.written = _Pos(
+        if stanza.written is None:
+            stanza.written = _Pos(
                 line=node.start.line,
                 column=0,
             )
-            self.line(self._stanza.source, self._stanza.written.line)
+            self.line(stanza.source, stanza.written.line)
 
-        while self._stanza.written.line < until.line:
-            text = self._stanza.source.line(self._stanza.written.line)
-            self.text(text[self._stanza.written.column :])
+        written = stanza.written
+        assert written is not None
 
-            self._stanza.written.line += 1
-            self._stanza.written.column = 0
+        while written.line < until.line:
+            text = stanza.source.line(written.line)
+            self.text(text[written.column :])
 
-            self.line(self._stanza.source, self._stanza.written.line)
+            written.line += 1
+            written.column = 0
 
-        if self._stanza.written.line > until.line:
+            self.line(stanza.source, written.line)
+
+        if written.line > until.line:
             return
 
-        if self._stanza.written.column >= until.column:
+        if written.column >= until.column:
             return
 
-        text = self._stanza.source.line(self._stanza.written.line)
-        self.text(text[self._stanza.written.column : until.column])
+        text = stanza.source.line(written.line)
+        self.text(text[written.column : until.column])
 
-        self._stanza.written.column = until.column
+        written.column = until.column
 
     def _enter_fragment(self, node: Fragment) -> Visit:
-        if self._depth is None:
+        depth = self._depth
+
+        if depth is None:
             raise Exception("Fragment nodes must appear inside Verbatim")
-        if self._depth < 1:
+        if depth < 1:
             raise Exception("Fragment nodes must appear inside Stanza")
 
         self._copy(node, node.start)
 
-        self._depth += 1
+        self._depth = depth + 1
         self.begin_highlight(node.highlights)
 
         return Visit.TraverseChildren
 
     def _exit_fragment(self, node: Fragment) -> None:
-        assert self._depth is not None
-        assert self._depth > 1
+        depth = self._depth
+        assert depth is not None
+        assert depth > 1
 
         self._copy(node, node.end)
         self.end_highlight()
 
-        self._depth -= 1
+        self._depth = depth - 1
 
     def _enter_stanza(self, node: Stanza) -> Visit:
         if self._depth is None:
