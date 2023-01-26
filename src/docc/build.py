@@ -60,7 +60,9 @@ class Builder(AbstractContextManager, ABC):
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
-        pass
+        """
+        Context handler clean-up function.
+        """
 
 
 def load(settings: Settings) -> Iterator[Tuple[str, Builder]]:

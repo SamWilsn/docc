@@ -15,8 +15,12 @@
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
 <section>
-    {# TODO: docstring #}
+    {% if node.docstring %}
+    <div class="docstring">
+        {{ node.docstring|html }}
+    </div>
+    {% endif %}
     <pre>{% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
-def {{ node.name|html }}({% for arg in node.arguments %}{# TODO: arg #}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:
+def {{ node.name|html }}({% for arg in node.parameters %}{# TODO: arg #}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:
 {{ node.body|html }}</pre>
 </section>

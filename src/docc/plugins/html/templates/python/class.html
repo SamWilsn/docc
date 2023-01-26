@@ -16,14 +16,16 @@
 -#}
 <section>
     <h3>{{ node.name|html }}</h3>
-    <pre>{% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
-class {{ node.name|html }}{%- if node.bases -%}
+    {% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
+    <pre>class {{ node.name|html }}{%- if node.bases -%}
     (
     {%- for base in node.bases -%}
     {{- base|html -}}
     {%- if not loop.last -%}, {% endif -%}
     {%- endfor -%}
     )
-    {%- endif %}:
-TODO</pre>
+    {%- endif %}:</pre>
+    {% for member in node.members %}
+    {{ member|html }}
+    {% endfor %}
 </section>

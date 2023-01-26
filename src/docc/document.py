@@ -222,7 +222,7 @@ class Document:
         index: Index,
         source: Source,
         root: Node,
-    ):
+    ) -> None:
         self.all_sources = all_sources
         self.index = index
         self.source = source

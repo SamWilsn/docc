@@ -33,7 +33,7 @@ class Discover(ABC):
     """
 
     @abstractmethod
-    def __init__(self, config: PluginSettings):
+    def __init__(self, config: PluginSettings) -> None:
         """
         Construct a new instance with the given configuration.
         """

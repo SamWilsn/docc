@@ -26,7 +26,7 @@ from docc.settings import PluginSettings
 from docc.transform import Transform
 
 
-@dataclass
+@dataclass(repr=False)
 class Base(Node):
     """
     Node implementation for Definition and Reference.

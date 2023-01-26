@@ -15,13 +15,7 @@
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
 <section>
-    <pre>
-{%- for name in node.names -%}
-{{- name|html -}}
-{%- if not loop.last -%}
-, {% endif -%}
-{%- endfor %} = TODO
-</pre>
+    {{- node.body|html -}}
     {% if node.docstring %}
     <div class="docstring">
         {{ node.docstring|html }}

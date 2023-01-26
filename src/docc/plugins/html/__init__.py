@@ -25,9 +25,9 @@ from io import StringIO, TextIOBase
 from os.path import commonpath
 from pathlib import PurePath
 from typing import (
-    Any,
     Callable,
     Dict,
+    Final,
     Iterable,
     List,
     Optional,
@@ -42,6 +42,7 @@ from urllib.request import pathname2url
 import markupsafe
 from jinja2 import Environment, PackageLoader, pass_context, select_autoescape
 from jinja2.runtime import Context
+from typing_extensions import TypeAlias
 
 from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
 from docc.languages import python, verbatim
@@ -55,6 +56,11 @@ if sys.version_info < (3, 10):
     from importlib_metadata import EntryPoint, entry_points
 else:
     from importlib.metadata import EntryPoint, entry_points
+
+
+RenderResult: TypeAlias = Tuple[
+    Visit, Sequence[Union[str, "HTMLTag", "TextNode"]]
+]
 
 
 class TextNode(Node):
@@ -245,7 +251,10 @@ class HTMLVisitor(Visitor):
     """
 
     entry_points: Dict[str, EntryPoint]
-    renderers: Dict[Type, Callable]
+    renderers: Dict[
+        Type[Node],
+        Callable[..., object],
+    ]
     root: HTMLRoot
     stack: List[Union[HTMLRoot, HTMLTag, TextNode, BlankNode]]
     document: Document
@@ -259,7 +268,7 @@ class HTMLVisitor(Visitor):
         self.renderers = {}
         self.document = document
 
-    def _renderer(self, type_: Type) -> Callable:
+    def _renderer(self, type_: Type[Node]) -> Callable[..., object]:
         try:
             return self.renderers[type_]
         except KeyError:
@@ -394,7 +403,7 @@ class _HTMLParser(html.parser.HTMLParser):
 
 @pass_context
 def _html_filter(
-    context: Context, value: Any
+    context: Context, value: object
 ) -> Union[markupsafe.Markup, str]:
     document = context["document"]
     assert isinstance(document, Document)
@@ -419,8 +428,8 @@ def _html_filter(
 
 
 def _render_template(
-    document: Any, template_name: str, node: Node
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object, template_name: str, node: Node
+) -> RenderResult:
     assert isinstance(document, Document)
     env = Environment(
         loader=PackageLoader("docc.plugins.html"),
@@ -434,9 +443,9 @@ def _render_template(
 
 
 def python_module(
-    document: Any,
-    module: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    module: object,
+) -> RenderResult:
     """
     Render a python Module as HTML.
     """
@@ -445,9 +454,9 @@ def python_module(
 
 
 def python_class(
-    document: Any,
-    class_: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    class_: object,
+) -> RenderResult:
     """
     Render a python Class as HTML.
     """
@@ -456,9 +465,9 @@ def python_class(
 
 
 def python_attribute(
-    document: Any,
-    attribute: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    attribute: object,
+) -> RenderResult:
     """
     Render a python assignment as HTML.
     """
@@ -467,9 +476,9 @@ def python_attribute(
 
 
 def python_function(
-    document: Any,
-    function: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    function: object,
+) -> RenderResult:
     """
     Render a python Function as HTML.
     """
@@ -478,9 +487,9 @@ def python_function(
 
 
 def python_name(
-    document: Any,
-    name: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    name: object,
+) -> RenderResult:
     """
     Render a python Name as HTML.
     """
@@ -489,9 +498,9 @@ def python_name(
 
 
 def python_type(
-    document: Any,
-    type_: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    type_: object,
+) -> RenderResult:
     """
     Render a python Type as HTML.
     """
@@ -500,9 +509,9 @@ def python_type(
 
 
 def python_generics(
-    document: Any,
-    generics: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    generics: object,
+) -> RenderResult:
     """
     Render a python Generics as HTML.
     """
@@ -510,10 +519,21 @@ def python_generics(
     return _render_template(document, "python/generics.html", generics)
 
 
+def python_docstring(
+    document: object,
+    docstring: object,
+) -> RenderResult:
+    """
+    Render a python Docstring as HTML.
+    """
+    assert isinstance(docstring, python.Docstring)
+    return (Visit.TraverseChildren, docstring.text)
+
+
 def blank_node(
-    document: Any,
-    blank: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    blank: object,
+) -> RenderResult:
     """
     Render a blank node.
     """
@@ -522,13 +542,16 @@ def blank_node(
 
 
 class _VerbatimVisitor(verbatim.VerbatimVisitor):
+    document: Final[Document]
     root: HTMLTag
     body: HTMLTag
     node_stack: List[Node]
     highlights_stack: List[Sequence[str]]
 
-    def __init__(self) -> None:
+    def __init__(self, document: Document) -> None:
         super().__init__()
+        self.document = document
+
         self.body = HTMLTag("tbody")
 
         self.root = HTMLTag("table")
@@ -562,10 +585,11 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
             top = self.node_stack[-1]
             assert isinstance(top, HTMLTag)
 
+            classes = [f"hi-{h}" for h in highlights] + ["hi"]
             span = HTMLTag(
                 "span",
                 attributes={
-                    "class": " ".join(f"hi-{h}" for h in highlights),
+                    "class": " ".join(classes),
                 },
             )
             top.append(span)
@@ -584,29 +608,65 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
         self.highlights_stack.pop()
         self.node_stack.pop()
 
+    def enter_node(self, node: Node) -> Visit:
+        """
+        Visit a non-verbatim Node.
+        """
+        if isinstance(node, references.Reference):
+            if "<" in node.identifier:
+                # TODO: Create definitions for local variables.
+                return Visit.TraverseChildren
+            new_node = _render_reference(self.document, node)
+            top = self.node_stack[-1]
+            assert isinstance(top, HTMLTag)
+            top.append(new_node)
+            self.node_stack.append(new_node)
+            return Visit.TraverseChildren
+        else:
+            return super().enter_node(node)
+
+    def exit_node(self, node: Node) -> None:
+        """
+        Leave a non-verbatim Node.
+        """
+        if isinstance(node, references.Reference):
+            if "<" in node.identifier:
+                # TODO: Create definitions for local variables.
+                return
+
+            popped = self.node_stack.pop()
+
+            # XXX: I'm concerned that a reference might end up on the stack
+            #      during a line change.
+            assert isinstance(popped, HTMLTag)
+            assert popped.tag_name == "a"
+        else:
+            return super().exit_node(node)
+
 
 def verbatim_verbatim(
     document: Document,
     node: verbatim.Verbatim,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+) -> RenderResult:
     """
     Render a verbatim block as HTML.
     """
     assert isinstance(document, Document)
     assert isinstance(node, verbatim.Verbatim)
 
-    visitor = _VerbatimVisitor()
+    visitor = _VerbatimVisitor(document)
     node.visit(visitor)
     return (Visit.SkipChildren, [visitor.root])
 
 
 def references_definition(
-    document: Any,
-    definition: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    definition: object,
+) -> RenderResult:
     """
     Render a Definition as HTML.
     """
+    assert isinstance(document, Document)
     assert isinstance(definition, references.Definition)
 
     new_id = f"{definition.identifier}:{definition.specifier}"
@@ -638,9 +698,9 @@ def references_definition(
 
 
 def references_reference(
-    document: Any,
-    reference: Any,
-) -> Tuple[Visit, Sequence[Union[str, HTMLTag, TextNode]]]:
+    document: object,
+    reference: object,
+) -> Tuple[Visit, Sequence[Union[HTMLTag, TextNode]]]:
     """
     Render a Reference as HTML.
     """
@@ -655,10 +715,24 @@ def references_reference(
     if not children:
         children.append(TextNode(reference.identifier))
 
+    anchor = _render_reference(document, reference)
+
     # TODO: handle tr, td, and other elements that can't be wrapped in an <a>.
 
+    for child in children:
+        anchor.append(child)
+
+    return (Visit.SkipChildren, [anchor])
+
+
+def _render_reference(
+    document: Document, reference: references.Reference
+) -> HTMLTag:
     anchor = HTMLTag("a")
 
+    if reference.identifier == "src.docc.discover":
+        print(document.source)
+        document.root.dump()
     definitions = list(document.index.lookup(reference.identifier))
 
     if len(definitions) != 1:
@@ -695,7 +769,4 @@ def references_reference(
         )
     )
 
-    for child in children:
-        anchor.append(child)
-
-    return (Visit.SkipChildren, [anchor])
+    return anchor

@@ -72,7 +72,6 @@ class TextSource(Source):
         """
         Extract a line of text from the source.
         """
-
         # TODO: Don't reopen and reread the file every time...
         with self.open() as f:
             lines = f.read().split("\n")

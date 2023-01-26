@@ -65,7 +65,7 @@ class PluginSettings(Mapping):
         """
         return iter(self._store)
 
-    def __getitem__(self, k: str) -> Any:
+    def __getitem__(self, k: str) -> object:
         """
         Return the item with the given key.
         """

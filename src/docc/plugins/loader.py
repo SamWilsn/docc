@@ -18,7 +18,8 @@ Load plugins.
 """
 
 import sys
-from typing import Dict, Type
+from inspect import isabstract
+from typing import Callable, Dict, Type, TypeVar
 
 if sys.version_info < (3, 10):
     from importlib_metadata import EntryPoint, entry_points
@@ -32,6 +33,9 @@ class PluginError(Exception):
     """
 
     pass
+
+
+L = TypeVar("L")
 
 
 class Loader:
@@ -48,12 +52,16 @@ class Loader:
         found = set(entry_points(group="docc.plugins"))
         self.entry_points = {entry.name: entry for entry in found}
 
-    # FIXME: really should be `base: Type[T]`, but python/mypy#4717...
-    def load(self, base: Type, name: str) -> Type:
+    def load(self, base: Type[L], name: str) -> Callable[..., L]:
         """
         Load a plugin by name.
         """
         class_ = self.entry_points[name].load()
-        if issubclass(class_, base):
-            return class_
-        raise PluginError(f"type {class_} is not a subclass of {base}")
+
+        if isabstract(class_):
+            raise PluginError(f"type {class_} is abstract")
+
+        if not issubclass(class_, base):
+            raise PluginError(f"type {class_} is not a subclass of {base}")
+
+        return class_

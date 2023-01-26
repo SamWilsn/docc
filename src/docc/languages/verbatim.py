@@ -18,13 +18,12 @@ Support for copying verbatim text from a Source into the output, with syntax
 highlighting support.
 """
 
-import dataclasses
 import logging
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence
 
-from ..document import BlankNode, Node, Visit, Visitor
+from ..document import Node, Visit, Visitor
 from ..source import TextSource
 
 
@@ -50,9 +49,9 @@ class VerbatimNode(Node):
         Replace the old node with the given new node.
         """
         self._check(new)
-        for idx, child in enumerate(self._children):
+        for index, child in enumerate(self._children):
             if child == old:
-                self._children[idx] = new
+                self._children[index] = new
 
     def append(self, new: Node) -> None:
         """
@@ -70,7 +69,6 @@ class VerbatimNode(Node):
 
 @dataclass(order=True)
 class _Pos:
-    __slots__ = ("line", "column")
     line: int
     column: int
 
@@ -81,12 +79,13 @@ class Pos:
     Position in a Source.
     """
 
-    __slots__ = ("line", "column")
-
     line: int
     column: int
 
     def __repr__(self) -> str:
+        """
+        Textual representation of this instance.
+        """
         return f"{self.line}:{self.column}"
 
 
@@ -96,6 +95,9 @@ class Verbatim(VerbatimNode):
     """
 
     def __repr__(self) -> str:
+        """
+        Textual representation of this instance.
+        """
         return "Verbatim()"
 
 
@@ -111,6 +113,9 @@ class Stanza(VerbatimNode):
         self.source = source
 
     def __repr__(self) -> str:
+        """
+        Textual representation of this instance.
+        """
         return f"Stanza({self.source!r})"
 
 
@@ -133,6 +138,9 @@ class Fragment(VerbatimNode):
         self.highlights = [] if highlights is None else highlights
 
     def __repr__(self) -> str:
+        """
+        Textual representation of this instance.
+        """
         return f"Fragment({self.start}, {self.end}, {self.highlights!r})"
 
 
@@ -195,7 +203,8 @@ class VerbatimVisitor(Visitor):
         Visit a non-verbatim Node.
         """
         logging.warning(
-            "VerbatimVisitor entered non-verbatim node `%s`",
+            "`%s` entered non-verbatim node `%s`",
+            self.__class__.__name__,
             node.__class__.__name__,
         )
         return Visit.TraverseChildren
@@ -205,7 +214,8 @@ class VerbatimVisitor(Visitor):
         Leave a non-verbatim Node.
         """
         logging.warning(
-            "VerbatimVisitor exited non-verbatim node `%s`",
+            "`%s` exited non-verbatim node `%s`",
+            self.__class__.__name__,
             node.__class__.__name__,
         )
 

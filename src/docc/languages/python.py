@@ -80,6 +80,7 @@ class Module(PythonNode):
     A Python module.
     """
 
+    name: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
     members: Sequence[Node] = dataclasses.field(default_factory=list)
 
@@ -106,7 +107,7 @@ class Function(PythonNode):
 
     decorators: Sequence[Node] = dataclasses.field(default_factory=list)
     name: Node = dataclasses.field(default_factory=BlankNode)
-    arguments: Sequence[Node] = dataclasses.field(default_factory=list)
+    parameters: Sequence[Node] = dataclasses.field(default_factory=list)
     return_type: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
     body: Node = dataclasses.field(default_factory=BlankNode)
@@ -132,20 +133,14 @@ class Generics(PythonNode):
 
 
 @dataclass(repr=False)
-class Argument(PythonNode):
+class Parameter(PythonNode):
     """
-    An argument descriptor in a function definition.
+    A parameter descriptor in a function definition.
     """
 
     name: Node = dataclasses.field(default_factory=BlankNode)
     type_annotation: Node = dataclasses.field(default_factory=BlankNode)
-
-
-@dataclass(repr=False)
-class Decorator(PythonNode):
-    """
-    A class or function decorator.
-    """
+    default_value: Node = dataclasses.field(default_factory=BlankNode)
 
 
 @dataclass(repr=False)
@@ -155,7 +150,7 @@ class Attribute(PythonNode):
     """
 
     names: Sequence[Node] = dataclasses.field(default_factory=list)
-    value: Node = dataclasses.field(default_factory=BlankNode)
+    body: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
 
 
@@ -166,7 +161,7 @@ class Name(Node):
     """
 
     name: str
-    full_name: Optional[str]
+    full_name: Optional[str] = dataclasses.field(default=None)
 
     @property
     def children(self) -> Iterable[Node]:

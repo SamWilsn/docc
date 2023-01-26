@@ -15,7 +15,9 @@
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
 <section>
-    <h2>TODO</h2>
+    {% if node.name %}
+    <h2>{{ node.name|html }}</h2>
+    {% endif %}
 
     {% if node.docstring %}
     <div class="docstring">
