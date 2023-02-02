@@ -514,7 +514,9 @@ class _TransformVisitor(Visitor):
     ) -> Visit:
         assert 0 < len(self.new_stack)
 
-        function_def = python.Function()
+        function_def = python.Function(
+            asynchronous=cst_node.asynchronous is not None
+        )
         self.push_new(function_def)
 
         docstring = cst_node.get_docstring(True)
@@ -557,7 +559,6 @@ class _TransformVisitor(Visitor):
 
         # TODO: arguments
         # TODO: argument defaults
-        # TODO: async
 
         return Visit.SkipChildren
 

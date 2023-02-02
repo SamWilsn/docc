@@ -22,6 +22,7 @@
     {% endif %}
     {% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
     <pre>
+{% if node.asynchronous %}async {% endif -%}
 def {{ node.name|html }}({% for arg in node.parameters %}{# TODO: arg #}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:
 </pre>{{ node.body|html }}
 </section>

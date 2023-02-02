@@ -37,15 +37,20 @@ class PythonNode(Node):
         for field in fields(self):
             value = getattr(self, field.name)
 
-            if isinstance(value, Node):
+            if field.type == Node:
                 # Value is a single child.
+                if not isinstance(value, Node):
+                    raise TypeError("child not Node")
                 yield value
-                continue
-
-            # Assume value is a list of children instead.
-            for item in value:
-                assert isinstance(item, Node)
-                yield item
+            elif field.type == Sequence[Node]:
+                # Value is a list of children.
+                for item in value:
+                    if not isinstance(item, Node):
+                        raise TypeError("child not Node")
+                    yield item
+            else:
+                # Not a child, so just ignore it.
+                pass
 
     def replace_child(self, old: Node, new: Node) -> None:
         """
@@ -105,6 +110,7 @@ class Function(PythonNode):
     A function definition.
     """
 
+    asynchronous: bool
     decorators: Sequence[Node] = dataclasses.field(default_factory=list)
     name: Node = dataclasses.field(default_factory=BlankNode)
     parameters: Sequence[Node] = dataclasses.field(default_factory=list)
