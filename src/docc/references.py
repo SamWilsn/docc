@@ -19,7 +19,7 @@ Shared index of definitions.
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Iterable, Set
+from typing import Dict, Iterable, Optional, Set
 
 from .source import Source
 
@@ -42,8 +42,15 @@ class ReferenceError(Exception):
 
     identifier: str
 
-    def __init__(self, identifier: str) -> None:
-        super().__init__(f"undefined identifier: `{identifier}`")
+    def __init__(
+        self, identifier: str, source: Optional[Source] = None
+    ) -> None:
+        message = f"undefined identifier: `{identifier}`"
+
+        if source and source.relative_path:
+            message = f"in `{source.relative_path}`, {message}"
+
+        super().__init__(message)
         self.identifier = identifier
 
 

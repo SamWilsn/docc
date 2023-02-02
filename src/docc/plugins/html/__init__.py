@@ -48,6 +48,7 @@ from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
 from docc.languages import python, verbatim
 from docc.plugins import references
 from docc.plugins.loader import PluginError
+from docc.references import ReferenceError
 from docc.settings import PluginSettings
 from docc.source import TextSource
 from docc.transform import Transform
@@ -375,7 +376,9 @@ class _HTMLParser(html.parser.HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         ended = self.stack.pop()
         assert isinstance(ended, HTMLTag)
-        assert ended.tag_name == tag
+        assert (
+            ended.tag_name == tag
+        ), f"mismatched tag `{ended.tag_name}` and `{tag}`"
 
     def handle_data(self, data: str) -> None:
         self.stack[-1].append(TextNode(data))
@@ -414,7 +417,7 @@ def _html_filter(
     children = []
     for child in visitor.root.children:
         if isinstance(child, TextNode):
-            children.append(child._value)
+            children.append(html.escape(child._value))
             continue
 
         assert isinstance(child, HTMLTag)
@@ -545,8 +548,8 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
     document: Final[Document]
     root: HTMLTag
     body: HTMLTag
-    node_stack: List[Node]
-    highlights_stack: List[Sequence[str]]
+    output_stack: List[Node]
+    input_stack: List[Union[Sequence[str], references.Reference]]
 
     def __init__(self, document: Document) -> None:
         super().__init__()
@@ -557,8 +560,8 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
         self.root = HTMLTag("table")
         self.root.append(self.body)
 
-        self.node_stack = []
-        self.highlights_stack = []
+        self.output_stack = []
+        self.input_stack = []
 
     def line(self, source: TextSource, line: int) -> None:
         line_text = TextNode(str(line))
@@ -577,36 +580,47 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
 
         self.body.append(row)
 
-        self.node_stack = [code_pre]
-        self._highlight(self.highlights_stack)
+        self.output_stack = [code_pre]
+        self._highlight(self.input_stack)
 
-    def _highlight(self, highlight_groups: Sequence[Sequence[str]]) -> None:
-        for highlights in highlight_groups:
-            top = self.node_stack[-1]
+    def _highlight(
+        self,
+        highlight_groups: Sequence[Union[Sequence[str], references.Reference]],
+    ) -> None:
+        for item in highlight_groups:
+            top = self.output_stack[-1]
             assert isinstance(top, HTMLTag)
 
-            classes = [f"hi-{h}" for h in highlights] + ["hi"]
-            span = HTMLTag(
-                "span",
-                attributes={
-                    "class": " ".join(classes),
-                },
-            )
-            top.append(span)
-            self.node_stack.append(span)
+            if isinstance(item, references.Reference):
+                new_node = _render_reference(self.document, item)
+            else:
+                classes = [f"hi-{h}" for h in item] + ["hi"]
+                new_node = HTMLTag(
+                    "span",
+                    attributes={
+                        "class": " ".join(classes),
+                    },
+                )
+
+            top.append(new_node)
+            self.output_stack.append(new_node)
 
     def text(self, text: str) -> None:
-        top = self.node_stack[-1]
+        top = self.output_stack[-1]
         assert isinstance(top, HTMLTag)
         top.append(TextNode(text))
 
     def begin_highlight(self, highlights: Sequence[str]) -> None:
-        self.highlights_stack.append(highlights)
+        self.input_stack.append(highlights)
         self._highlight([highlights])
 
     def end_highlight(self) -> None:
-        self.highlights_stack.pop()
-        self.node_stack.pop()
+        self.input_stack.pop()
+        popped_node = self.output_stack.pop()
+        assert isinstance(popped_node, HTMLTag)
+        assert (
+            popped_node.tag_name == "span"
+        ), f"expected span, got `{popped_node.tag_name}`"
 
     def enter_node(self, node: Node) -> Visit:
         """
@@ -616,11 +630,9 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
             if "<" in node.identifier:
                 # TODO: Create definitions for local variables.
                 return Visit.TraverseChildren
-            new_node = _render_reference(self.document, node)
-            top = self.node_stack[-1]
-            assert isinstance(top, HTMLTag)
-            top.append(new_node)
-            self.node_stack.append(new_node)
+            self.input_stack.append(node)
+            if self.output_stack:
+                self._highlight([node])
             return Visit.TraverseChildren
         else:
             return super().enter_node(node)
@@ -634,12 +646,15 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
                 # TODO: Create definitions for local variables.
                 return
 
-            popped = self.node_stack.pop()
+            popped = self.input_stack.pop()
+            assert popped == node
 
-            # XXX: I'm concerned that a reference might end up on the stack
-            #      during a line change.
-            assert isinstance(popped, HTMLTag)
-            assert popped.tag_name == "a"
+            popped_output = self.output_stack.pop()
+            assert isinstance(popped_output, HTMLTag)
+            assert (
+                popped_output.tag_name == "a"
+            ), f"expected a, got `{popped_output.tag_name}`"
+
         else:
             return super().exit_node(node)
 
@@ -730,10 +745,12 @@ def _render_reference(
 ) -> HTMLTag:
     anchor = HTMLTag("a")
 
-    if reference.identifier == "src.docc.discover":
-        print(document.source)
-        document.root.dump()
-    definitions = list(document.index.lookup(reference.identifier))
+    try:
+        definitions = list(document.index.lookup(reference.identifier))
+    except ReferenceError as error:
+        raise ReferenceError(
+            reference.identifier, source=document.source
+        ) from error
 
     if len(definitions) != 1:
         raise NotImplementedError()

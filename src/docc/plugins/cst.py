@@ -373,16 +373,23 @@ class PythonTransform(Transform):
     Transforms CstNode instances into Python language nodes.
     """
 
+    excluded_references: Final[FrozenSet[str]]
+
     def __init__(self, config: PluginSettings) -> None:
         """
         Create a Transform with the given configuration.
         """
+        self.excluded_references = frozenset(
+            config.get("excluded_references", [])
+        )
 
     def transform(self, document: Document) -> None:
         """
         Apply the transformation to the given document.
         """
-        document.root.visit(_AnnotationReferenceTransformVisitor())
+        document.root.visit(
+            _AnnotationReferenceTransformVisitor(self.excluded_references)
+        )
 
         sources: Set[str] = set()  # TODO
         visitor = _TransformVisitor(document, sources)
@@ -722,10 +729,12 @@ class _TransformVisitor(Visitor):
 class _AnnotationReferenceTransformVisitor(Visitor):
     root: Optional[Node]
     stack: Final[List[Node]]
+    excluded_references: Final[FrozenSet[str]]
 
-    def __init__(self) -> None:
+    def __init__(self, excluded_references: FrozenSet[str]) -> None:
         self.stack = []
         self.root = None
+        self.excluded_references = excluded_references
 
     def enter(self, node: Node) -> Visit:
         if self.root is None:
@@ -751,6 +760,11 @@ class _AnnotationReferenceTransformVisitor(Visitor):
 
     def _make_reference(self, node: CstNode) -> None:
         for name in node.names:
+            if name in self.excluded_references:
+                continue
+
+            # TODO: This incorrectly matches `foobar.do_thing` if `foo` is in
+            #       `node.all_modules`.
             if any(name.startswith(m) for m in node.all_modules):
                 reference = Reference(
                     identifier=name,
