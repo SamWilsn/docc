@@ -391,8 +391,7 @@ class PythonTransform(Transform):
             _AnnotationReferenceTransformVisitor(self.excluded_references)
         )
 
-        sources: Set[str] = set()  # TODO
-        visitor = _TransformVisitor(document, sources)
+        visitor = _TransformVisitor(document)
         document.root.visit(visitor)
         assert visitor.root is not None
         document.root = visitor.root
@@ -412,14 +411,12 @@ class _TransformVisitor(Visitor):
     old_stack: Final[List[_TransformContext]]
     new_stack: Final[List[Node]]
     document: Final[Document]
-    source_paths: Final[Set[str]]
 
-    def __init__(self, document: Document, source_paths: Set[str]) -> None:
+    def __init__(self, document: Document) -> None:
         self.root = None
         self.old_stack = []
         self.new_stack = []
         self.document = document
-        self.source_paths = source_paths
 
     def push_new(self, node: Node) -> None:
         if self.root is None:
