@@ -14,15 +14,11 @@
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
-<section>
-    {% if node.docstring %}
-    <div class="docstring">
-        {{ node.docstring|html }}
-    </div>
-    {% endif %}
-    {% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
-    <pre>
-{% if node.asynchronous %}async {% endif -%}
-def {{ node.name|html }}({% for arg in node.parameters %}{{ arg|html }}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:
-</pre>{{ node.body|html }}
-</section>
+{% if node.star == "*" -%}
+*
+{%- elif node.star == "**" -%}
+**
+{%- endif -%}
+{{- node.name|html -}}
+{%- if node.type_annotation -%}: {{ node.type_annotation|html -}}{%- endif -%}
+{# TODO: default value #}

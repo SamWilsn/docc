@@ -511,15 +511,26 @@ def python_type(
     return _render_template(document, "python/type.html", type_)
 
 
-def python_generics(
+def python_list(
     document: object,
-    generics: object,
+    list_: object,
 ) -> RenderResult:
     """
-    Render a python Generics as HTML.
+    Render a python List as HTML.
     """
-    assert isinstance(generics, python.Generics)
-    return _render_template(document, "python/generics.html", generics)
+    assert isinstance(list_, python.List)
+    return _render_template(document, "python/list.html", list_)
+
+
+def python_tuple(
+    document: object,
+    tuple_: object,
+) -> RenderResult:
+    """
+    Render a python List as HTML.
+    """
+    assert isinstance(tuple_, python.Tuple)
+    return _render_template(document, "python/tuple.html", tuple_)
 
 
 def python_docstring(
@@ -531,6 +542,17 @@ def python_docstring(
     """
     assert isinstance(docstring, python.Docstring)
     return (Visit.TraverseChildren, docstring.text)
+
+
+def python_parameter(
+    document: object,
+    parameter: object,
+) -> RenderResult:
+    """
+    Render a python Parameter as HTML.
+    """
+    assert isinstance(parameter, python.Parameter)
+    return _render_template(document, "python/parameter.html", parameter)
 
 
 def blank_node(

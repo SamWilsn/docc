@@ -31,6 +31,7 @@ merchantability
 metaclass
 modulefinder
 param
+params
 pathname2url
 Pos
 renderer

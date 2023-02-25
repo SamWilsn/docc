@@ -511,8 +511,10 @@ class _TransformVisitor(Visitor):
     ) -> Visit:
         assert 0 < len(self.new_stack)
 
+        parameters = []
         function_def = python.Function(
-            asynchronous=cst_node.asynchronous is not None
+            asynchronous=cst_node.asynchronous is not None,
+            parameters=parameters,
         )
         self.push_new(function_def)
 
@@ -554,8 +556,36 @@ class _TransformVisitor(Visitor):
             if isinstance(members, list):
                 members.append(maybe_definition)
 
-        # TODO: arguments
-        # TODO: argument defaults
+        for param in node.find_child(cst_node.params).children:
+            if not isinstance(param, CstNode):
+                parameters.append(param)
+                continue
+
+            parameter = python.Parameter()
+            parameters.append(parameter)
+
+            cst_param = param.cst_node
+            if isinstance(cst_param, cst.Param):
+                parameter.name = param.find_child(cst_param.name)
+                if cst_param.star == "*":
+                    parameter.star = "*"
+                elif cst_param.star == "**":
+                    parameter.star = "**"
+
+                if cst_param.annotation is not None:
+                    parameter.type_annotation = param.find_child(
+                        cst_param.annotation
+                    )
+
+                if cst_param.default is not None:
+                    # TODO: parameter default
+                    logging.warning("parameter default values not implemented")
+            elif isinstance(cst_param, cst.ParamSlash):
+                parameter.name = python.Name("/")
+            elif isinstance(cst_param, cst.ParamStar):
+                parameter.name = python.Name("*")
+            else:
+                raise NotImplementedError(f"parameter type `{param}`")
 
         return Visit.SkipChildren
 
@@ -806,7 +836,7 @@ class _TypeVisitor(Visitor):
             self.type.name = python.Name(names[0], names[0])
         elif isinstance(cst_node, cst.Subscript):
             arguments = []
-            generics = python.Generics(arguments=arguments)
+            generics = python.List(elements=arguments)
             self.type.generics = generics
             type_ = python.Type()
             value = node.find_child(cst_node.value)
@@ -834,8 +864,35 @@ class _TypeVisitor(Visitor):
                 index_value.visit(_TypeVisitor(index_value, generic))
 
                 arguments.append(generic)
+        elif isinstance(cst_node, (cst.List, cst.Tuple)):
+            # For example: Callable[[<List>], None], Tuple[()]
+            elements = []
+
+            # TODO: This is a bit of a hack, since the argument list of a
+            #       Callable isn't a type of its own.
+
+            if isinstance(cst_node, cst.List):
+                self.type.generics = python.List(elements=elements)
+            elif isinstance(cst_node, cst.Tuple):
+                self.type.generics = python.Tuple(elements=elements)
+            else:
+                raise NotImplementedError()
+
+            for cst_element in cst_node.elements:
+                # TODO: This traversal assumes no new nodes were added between
+                #       the Subscript and the Index's contents.
+                assert isinstance(cst_element, cst.Element)
+                element = node.find_child(cst_element)
+
+                cst_value = cst_element.value
+                assert isinstance(element, CstNode)
+                value = element.find_child(cst_value)
+
+                type_ = python.Type()
+                value.visit(_TypeVisitor(value, type_))
+                elements.append(type_)
         else:
-            raise Exception(str(node))
+            raise Exception(str(node) + str(cst_node))
 
         return Visit.SkipChildren
 

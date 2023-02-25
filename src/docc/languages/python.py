@@ -19,7 +19,7 @@ Python language support for docc.
 
 import dataclasses
 from dataclasses import dataclass, fields
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Literal, Optional, Sequence, Union
 
 from ..document import BlankNode, Node
 
@@ -130,12 +130,21 @@ class Type(PythonNode):
 
 
 @dataclass(repr=False)
-class Generics(PythonNode):
+class List(PythonNode):
     """
-    The square brackets and list of types in a type annotation.
+    Square brackets wrapping a list of elements, usually separated by commas.
     """
 
-    arguments: Sequence[Node] = dataclasses.field(default_factory=list)
+    elements: Sequence[Node] = dataclasses.field(default_factory=list)
+
+
+@dataclass(repr=False)
+class Tuple(PythonNode):
+    """
+    Parentheses wrapping a list of elements, usually separated by commas.
+    """
+
+    elements: Sequence[Node] = dataclasses.field(default_factory=list)
 
 
 @dataclass(repr=False)
@@ -144,6 +153,7 @@ class Parameter(PythonNode):
     A parameter descriptor in a function definition.
     """
 
+    star: Optional[Union[Literal["*"], Literal["**"]]] = None
     name: Node = dataclasses.field(default_factory=BlankNode)
     type_annotation: Node = dataclasses.field(default_factory=BlankNode)
     default_value: Node = dataclasses.field(default_factory=BlankNode)
