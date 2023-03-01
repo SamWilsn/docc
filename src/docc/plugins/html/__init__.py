@@ -59,9 +59,7 @@ else:
     from importlib.metadata import EntryPoint, entry_points
 
 
-RenderResult: TypeAlias = Tuple[
-    Visit, Sequence[Union[str, "HTMLTag", "TextNode"]]
-]
+RenderResult: TypeAlias = Optional["HTMLTag"]
 
 
 class TextNode(Node):
@@ -292,44 +290,24 @@ class HTMLVisitor(Visitor):
         Called when visiting the given node, before any children (if any) are
         visited.
         """
+        top = self.stack[-1]
+        assert isinstance(top, (HTMLRoot, HTMLTag))
+
         renderer = self._renderer(node.__class__)
-        result = renderer(self.document, node)
+        result = renderer(self.document, top, node)
 
-        if not isinstance(result, tuple) or len(result) != 2:
-            raise PluginError(
-                f"`{renderer.__module__}:{renderer.__qualname__}` "
-                "did not return a tuple with exactly two elements"
-            )
-
-        visit, tags = result
-
-        if not isinstance(visit, Visit):
-            raise PluginError(
-                f"`{renderer.__module__}:{renderer.__qualname__}` "
-                "did not return a Visit"
-            )
-
-        tags = [TextNode(x) if isinstance(x, str) else x for x in tags]
-
-        if not all(isinstance(x, (TextNode, HTMLTag)) for x in tags):
-            raise PluginError(
-                f"`{renderer.__module__}:{renderer.__qualname__}` "
-                "did not return str | HTMLTag"
-            )
-
-        for tag in tags:
-            top = self.stack[-1]
-            assert isinstance(top, (HTMLRoot, HTMLTag))
-            top.append(tag)
-
-        try:
-            last = tags[-1]
-        except IndexError:
+        if result is None:
             # Always append something so the exit implementation is simpler.
-            last = BlankNode()
-
-        self.stack.append(last)
-        return visit
+            self.stack.append(BlankNode())
+            return Visit.SkipChildren
+        elif isinstance(result, HTMLTag):
+            self.stack.append(result)
+            return Visit.TraverseChildren
+        else:
+            raise PluginError(
+                f"`{renderer.__module__}:{renderer.__qualname__}` "
+                "did not return `None` or `HTMLTag` instance"
+            )
 
     def exit(self, node: Node) -> None:
         """
@@ -357,7 +335,11 @@ class HTML(Transform):
         document.root = visitor.root
 
 
-class _HTMLParser(html.parser.HTMLParser):
+class HTMLParser(html.parser.HTMLParser):
+    """
+    Subclass of Python's HTMLParser that converts into docc's syntax tree.
+    """
+
     root: HTMLRoot
     stack: List[Union[HTMLRoot, HTMLTag]]
 
@@ -369,11 +351,17 @@ class _HTMLParser(html.parser.HTMLParser):
     def handle_starttag(
         self, tag: str, attrs: Sequence[Tuple[str, Optional[str]]]
     ) -> None:
+        """
+        Handle opening tags.
+        """
         element = HTMLTag(tag, dict(attrs))
         self.stack[-1].append(element)
         self.stack.append(element)
 
     def handle_endtag(self, tag: str) -> None:
+        """
+        Handle closing tags.
+        """
         ended = self.stack.pop()
         assert isinstance(ended, HTMLTag)
         assert (
@@ -381,26 +369,47 @@ class _HTMLParser(html.parser.HTMLParser):
         ), f"mismatched tag `{ended.tag_name}` and `{tag}`"
 
     def handle_data(self, data: str) -> None:
+        """
+        Handle data.
+        """
         self.stack[-1].append(TextNode(data))
 
     def handle_entityref(self, name: str) -> None:
+        """
+        Handle an entity reference.
+        """
         raise TypeError()  # Not called when convert_charrefs is True.
 
     def handle_charref(self, name: str) -> None:
+        """
+        Handle a character reference.
+        """
         raise TypeError()  # Not called when convert_charrefs is True.
 
     def handle_comment(self, data: str) -> None:
+        """
+        Handle an HTML comment.
+        """
         raise NotImplementedError("HTML comments not yet supported")
 
     def handle_decl(self, decl: str) -> None:
+        """
+        Handle a doctype.
+        """
         raise NotImplementedError("HTML doctypes not yet supported")
 
     def handle_pi(self, data: str) -> None:
+        """
+        Handle a processing instruction.
+        """
         raise NotImplementedError(
             "HTML processing instructions not yet supported"
         )
 
     def unknown_decl(self, data: str) -> None:
+        """
+        Handle an unknown HTML declaration.
+        """
         raise NotImplementedError("unknown HTML declaration")
 
 
@@ -431,139 +440,159 @@ def _html_filter(
 
 
 def _render_template(
-    document: object, template_name: str, node: Node
+    document: object, parent: object, template_name: str, node: Node
 ) -> RenderResult:
     assert isinstance(document, Document)
+    assert isinstance(parent, (HTMLTag, HTMLRoot))
     env = Environment(
         loader=PackageLoader("docc.plugins.html"),
         autoescape=select_autoescape(),
     )
     env.filters["html"] = _html_filter
     template = env.get_template(template_name)
-    parser = _HTMLParser()
+    parser = HTMLParser()
     parser.feed(template.render(document=document, node=node))
-    return (Visit.SkipChildren, parser.root._children)
+    for child in parser.root._children:
+        parent.append(child)
+    return None
 
 
 def python_module(
     document: object,
+    parent: object,
     module: object,
 ) -> RenderResult:
     """
     Render a python Module as HTML.
     """
     assert isinstance(module, python.Module)
-    return _render_template(document, "python/module.html", module)
+    return _render_template(document, parent, "python/module.html", module)
 
 
 def python_class(
     document: object,
+    parent: object,
     class_: object,
 ) -> RenderResult:
     """
     Render a python Class as HTML.
     """
     assert isinstance(class_, python.Class)
-    return _render_template(document, "python/class.html", class_)
+    return _render_template(document, parent, "python/class.html", class_)
 
 
 def python_attribute(
     document: object,
+    parent: object,
     attribute: object,
 ) -> RenderResult:
     """
     Render a python assignment as HTML.
     """
     assert isinstance(attribute, python.Attribute)
-    return _render_template(document, "python/attribute.html", attribute)
+    return _render_template(
+        document, parent, "python/attribute.html", attribute
+    )
 
 
 def python_function(
     document: object,
+    parent: object,
     function: object,
 ) -> RenderResult:
     """
     Render a python Function as HTML.
     """
     assert isinstance(function, python.Function)
-    return _render_template(document, "python/function.html", function)
+    return _render_template(document, parent, "python/function.html", function)
 
 
 def python_name(
     document: object,
+    parent: object,
     name: object,
 ) -> RenderResult:
     """
     Render a python Name as HTML.
     """
     assert isinstance(name, python.Name)
-    return _render_template(document, "python/name.html", name)
+    return _render_template(document, parent, "python/name.html", name)
 
 
 def python_type(
     document: object,
+    parent: object,
     type_: object,
 ) -> RenderResult:
     """
     Render a python Type as HTML.
     """
     assert isinstance(type_, python.Type)
-    return _render_template(document, "python/type.html", type_)
+    return _render_template(document, parent, "python/type.html", type_)
 
 
 def python_list(
     document: object,
+    parent: object,
     list_: object,
 ) -> RenderResult:
     """
     Render a python List as HTML.
     """
     assert isinstance(list_, python.List)
-    return _render_template(document, "python/list.html", list_)
+    return _render_template(document, parent, "python/list.html", list_)
 
 
 def python_tuple(
     document: object,
+    parent: object,
     tuple_: object,
 ) -> RenderResult:
     """
     Render a python List as HTML.
     """
     assert isinstance(tuple_, python.Tuple)
-    return _render_template(document, "python/tuple.html", tuple_)
+    return _render_template(document, parent, "python/tuple.html", tuple_)
 
 
 def python_docstring(
     document: object,
+    parent: object,
     docstring: object,
 ) -> RenderResult:
     """
     Render a python Docstring as HTML.
     """
     assert isinstance(docstring, python.Docstring)
-    return (Visit.TraverseChildren, docstring.text)
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
+    parent.append(TextNode(docstring.text))
+    return None
 
 
 def python_parameter(
     document: object,
+    parent: object,
     parameter: object,
 ) -> RenderResult:
     """
     Render a python Parameter as HTML.
     """
     assert isinstance(parameter, python.Parameter)
-    return _render_template(document, "python/parameter.html", parameter)
+    return _render_template(
+        document, parent, "python/parameter.html", parameter
+    )
 
 
 def blank_node(
     document: object,
+    parent: object,
     blank: object,
 ) -> RenderResult:
     """
     Render a blank node.
     """
     assert isinstance(blank, BlankNode)
-    return (Visit.TraverseChildren, [])
+    return None
 
 
 class _VerbatimVisitor(verbatim.VerbatimVisitor):
@@ -683,27 +712,32 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
 
 def verbatim_verbatim(
     document: Document,
+    parent: object,
     node: verbatim.Verbatim,
 ) -> RenderResult:
     """
     Render a verbatim block as HTML.
     """
     assert isinstance(document, Document)
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(node, verbatim.Verbatim)
 
     visitor = _VerbatimVisitor(document)
     node.visit(visitor)
-    return (Visit.SkipChildren, [visitor.root])
+    parent.append(visitor.root)
+    return None
 
 
 def references_definition(
     document: object,
+    parent: object,
     definition: object,
 ) -> RenderResult:
     """
     Render a Definition as HTML.
     """
     assert isinstance(document, Document)
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(definition, references.Definition)
 
     new_id = f"{definition.identifier}:{definition.specifier}"
@@ -731,35 +765,34 @@ def references_definition(
 
     first_child.attributes["id"] = new_id
 
-    return (Visit.SkipChildren, children)
+    for child in children:
+        parent.append(child)
+
+    return None
 
 
 def references_reference(
     document: object,
+    parent: object,
     reference: object,
-) -> Tuple[Visit, Sequence[Union[HTMLTag, TextNode]]]:
+) -> RenderResult:
     """
     Render a Reference as HTML.
     """
     assert isinstance(document, Document)
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(reference, references.Reference)
 
-    visitor = HTMLVisitor(document)
-    reference.child.visit(visitor)
-
-    children = list(visitor.root.children)
-
-    if not children:
-        children.append(TextNode(reference.identifier))
-
     anchor = _render_reference(document, reference)
+    parent.append(anchor)
+
+    if not reference.child:
+        anchor.append(TextNode(reference.identifier))
+        return None
 
     # TODO: handle tr, td, and other elements that can't be wrapped in an <a>.
 
-    for child in children:
-        anchor.append(child)
-
-    return (Visit.SkipChildren, [anchor])
+    return anchor
 
 
 def _render_reference(

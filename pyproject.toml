@@ -21,6 +21,7 @@ build = [
 
 transform = [
     "docc.cst.transform",
+    "docc.mistletoe.transform",
     "docc.references.index",
     "docc.html",
 ]

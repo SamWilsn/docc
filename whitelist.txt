@@ -19,6 +19,7 @@ exc
 expr
 fullname
 func
+href
 getitem
 globbed
 isabstract
@@ -26,6 +27,7 @@ islice
 libcst
 lvalue
 lvalues
+mailto
 markupsafe
 merchantability
 metaclass
@@ -34,14 +36,18 @@ param
 params
 pathname2url
 Pos
+ptag
 renderer
 renderers
 repo
 ret
 rvalue
+setext
 setitem
+src
 starttag
 stmt
+strikethrough
 subclasses
 superclass
 this'll
