@@ -391,10 +391,11 @@ class PythonTransform(Transform):
             _AnnotationReferenceTransformVisitor(self.excluded_references)
         )
 
-        visitor = _TransformVisitor(document)
-        document.root.visit(visitor)
-        assert visitor.root is not None
-        document.root = visitor.root
+        if isinstance(document.root, CstNode):
+            visitor = _TransformVisitor(document)
+            document.root.visit(visitor)
+            assert visitor.root is not None
+            document.root = visitor.root
 
         document.root.visit(_AnnotationTransformVisitor())
         document.root.visit(_NameTransformVisitor())

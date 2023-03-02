@@ -13,10 +13,12 @@ line-length = 79
 [tool.docc]
 discovery = [
     "docc.cst.discover",
+    "docc.listing.discover",
 ]
 
 build = [
     "docc.cst.build",
+    "docc.listing.build",
 ]
 
 transform = [
