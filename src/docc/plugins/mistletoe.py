@@ -25,7 +25,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    TypeAlias,
     Union,
 )
 
@@ -33,6 +32,7 @@ import mistletoe as md
 from mistletoe import block_token as blocks
 from mistletoe import span_token as spans
 from mistletoe.token import Token as MarkdownToken
+from typing_extensions import TypeAlias
 
 from docc.document import Document, Node, Visit, Visitor
 from docc.languages import python
