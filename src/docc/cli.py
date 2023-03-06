@@ -17,7 +17,9 @@
 Command line interface to docc.
 """
 
+import argparse
 import logging
+import sys
 from contextlib import ExitStack
 from pathlib import Path
 from shutil import rmtree
@@ -34,7 +36,29 @@ def main() -> None:
     """
     Entry-point for the command line tool.
     """
+    parser = argparse.ArgumentParser(
+        description="Python documentation generator."
+    )
+
+    parser.add_argument(
+        "--output", help="The directory to write documentation to."
+    )
+
+    args = parser.parse_args()
     settings = Settings(Path.cwd())
+
+    if args.output is None:
+        output_root = settings.output.path
+
+        if output_root is None:
+            logging.critical(
+                "Output path is required. "
+                "Either define `tool.docc.output.path` in `pyproject.toml` "
+                "or use `--output foo/bar` on the command line."
+            )
+            sys.exit(1)
+    else:
+        output_root = Path(args.output)
 
     discover_plugins = discover.load(settings)
     transform_plugins = transform.load(settings)
@@ -69,10 +93,10 @@ def main() -> None:
             for document in documents.values():
                 transform_plugin.transform(document)
 
-        rmtree(settings.output.path, ignore_errors=True)
+        rmtree(output_root, ignore_errors=True)
 
         for source, document in documents.items():
-            output_path = settings.output.path / source.output_path
+            output_path = output_root / source.output_path
             output_path = Path(
                 output_path.with_suffix(
                     output_path.suffix + settings.output.extension

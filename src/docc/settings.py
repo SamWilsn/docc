@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from itertools import chain, islice
 from pathlib import Path, PurePath
-from typing import Any, Dict, Iterator, Sequence
+from typing import Any, Dict, Iterator, Optional, Sequence
 
 import tomli
 
@@ -91,7 +91,7 @@ class Output:
     Settings for the output of the documentation process.
     """
 
-    path: Path
+    path: Optional[Path]
     extension: str
 
 
@@ -134,8 +134,13 @@ class Settings:
             # TODO: Come up with some defaults.
             self._settings = {}
 
+        try:
+            output_path = Path(self._settings["output"]["path"])
+        except KeyError:
+            output_path = None
+
         self.output = Output(
-            path=Path(self._settings["output"]["path"]),
+            path=output_path,
             extension=self._settings["output"]["extension"],
         )
 
