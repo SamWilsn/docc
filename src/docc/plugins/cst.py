@@ -56,6 +56,9 @@ WHITESPACE: Tuple[Type[cst.CSTNode], ...] = (
     cst.TrailingWhitespace,
     cst.EmptyLine,
 )
+"""
+libcst nodes that count as whitespace and should be ignored.
+"""
 
 
 class PythonDiscover(Discover):
@@ -495,9 +498,22 @@ class _TransformVisitor(Visitor):
         body = node.find_child(cst_node.body)
         assert isinstance(body, CstNode)
 
+        class_context = _TransformContext(node=node)
+        body_context = _TransformContext(node=body)
+
+        self.old_stack.append(class_context)
+        self.old_stack.append(body_context)
+
         for cst_statement in cst_node.body.body:
+            self.old_stack[-1].child_offset += 1
             statement = body.find_child(cst_statement)
             statement.visit(self)
+
+        popped = self.old_stack.pop()
+        assert popped == body_context
+
+        popped = self.old_stack.pop()
+        assert popped == class_context
 
         # TODO: base classes
         # TODO: metaclass
@@ -593,6 +609,45 @@ class _TransformVisitor(Visitor):
     def exit_function_def(self) -> None:
         self.new_stack.pop()
 
+    def _assign_docstring(self) -> Optional[python.Docstring]:
+        parent_context = self.old_stack[-1]
+        parent = parent_context.node
+        if not isinstance(parent, CstNode):
+            return None
+
+        cst_parent = parent.cst_node
+        if not isinstance(cst_parent, cst.SimpleStatementLine):
+            return None
+
+        try:
+            line_parent_context = self.old_stack[-2]
+            sibling_index = line_parent_context.child_offset + 1
+            sibling = line_parent_context.node.children[sibling_index]
+        except IndexError:
+            return None
+
+        if not isinstance(sibling, CstNode):
+            return None
+
+        cst_sibling = sibling.cst_node
+        if not isinstance(cst_sibling, cst.SimpleStatementLine):
+            return None
+
+        if len(cst_sibling.body) != 1:
+            return None
+
+        cst_body = cst_sibling.body[0]
+
+        if not isinstance(cst_body, cst.Expr):
+            return None
+
+        cst_value = cst_body.value
+
+        if not isinstance(cst_value, cst.SimpleString):
+            return None
+
+        return python.Docstring(text=cst_value.evaluated_value)
+
     def _enter_assignment(
         self,
         node: CstNode,
@@ -613,7 +668,9 @@ class _TransformVisitor(Visitor):
         names: List[Node] = []
         attribute = python.Attribute(names=names)
 
-        # TODO: Docstring
+        docstring = self._assign_docstring()
+        if docstring:
+            attribute.docstring = docstring
 
         if isinstance(self.document.source, TextSource):
             attribute.body = _VerbatimTransform.apply(
