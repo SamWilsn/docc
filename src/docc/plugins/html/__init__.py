@@ -28,7 +28,9 @@ from typing import (
     Callable,
     Dict,
     Final,
+    FrozenSet,
     Iterable,
+    Iterator,
     List,
     Optional,
     Sequence,
@@ -44,13 +46,15 @@ from jinja2 import Environment, PackageLoader, pass_context, select_autoescape
 from jinja2.runtime import Context
 from typing_extensions import TypeAlias
 
+from docc.discover import Discover, T
 from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
 from docc.languages import python, verbatim
 from docc.plugins import references
 from docc.plugins.loader import PluginError
+from docc.plugins.resources import ResourceNode, ResourceSource
 from docc.references import ReferenceError
 from docc.settings import PluginSettings
-from docc.source import TextSource
+from docc.source import Source, TextSource
 from docc.transform import Transform
 
 if sys.version_info < (3, 10):
@@ -60,6 +64,33 @@ else:
 
 
 RenderResult: TypeAlias = Optional["HTMLTag"]
+
+
+class HTMLDiscover(Discover):
+    """
+    Create sources for static files necessary for HTML output.
+    """
+
+    def __init__(self, config: PluginSettings) -> None:
+        """
+        Construct a new instance with the given configuration.
+        """
+        pass
+
+    def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
+        """
+        Find sources.
+        """
+        yield ResourceSource.with_path(
+            "docc.plugins.html",
+            PurePath("static") / "chota" / "dist" / "chota.min.css",
+            PurePath("static") / "chota",
+        )
+        yield ResourceSource.with_path(
+            "docc.plugins.html",
+            PurePath("static") / "docc.css",
+            PurePath("static") / "docc",
+        )
 
 
 class TextNode(Node):
@@ -179,7 +210,7 @@ class HTMLRoot(OutputNode):
         """
         self._children.append(node)
 
-    def output(self, destination: TextIOBase) -> None:
+    def output(self, document: Document, destination: TextIOBase) -> None:
         """
         Attempt to write this node to destination as HTML.
         """
@@ -200,7 +231,19 @@ class HTMLRoot(OutputNode):
         )
         template = env.get_template("base.html")
         body = rendered.getvalue()
-        destination.write(template.render(body=markupsafe.Markup(body)))
+        static_path = _static_path_from(document)
+        destination.write(
+            template.render(
+                body=markupsafe.Markup(body), static_path=static_path
+            )
+        )
+
+    @property
+    def extension(self) -> str:
+        """
+        The preferred file extension for this node.
+        """
+        return ".html"
 
 
 class _ElementTreeVisitor(Visitor):
@@ -329,6 +372,9 @@ class HTML(Transform):
         """
         Apply the transformation to the given document.
         """
+        if isinstance(document.root, ResourceNode):
+            return None
+
         visitor = HTMLVisitor(document)
         document.root.visit(visitor)
         assert visitor.root is not None
@@ -439,11 +485,21 @@ def _html_filter(
     return markupsafe.Markup(rendered) if eval_context.autoescape else rendered
 
 
+def _static_path_from(document: Document) -> str:
+    return pathname2url(
+        str(
+            _make_relative(document.source.output_path, PurePath("static"))
+            or PurePath()
+        )
+    )
+
+
 def _render_template(
     document: object, parent: object, template_name: str, node: Node
 ) -> RenderResult:
     assert isinstance(document, Document)
     assert isinstance(parent, (HTMLTag, HTMLRoot))
+    static_path = _static_path_from(document)
     env = Environment(
         loader=PackageLoader("docc.plugins.html"),
         autoescape=select_autoescape(),
@@ -451,7 +507,9 @@ def _render_template(
     env.filters["html"] = _html_filter
     template = env.get_template(template_name)
     parser = HTMLParser()
-    parser.feed(template.render(document=document, node=node))
+    parser.feed(
+        template.render(document=document, node=node, static_path=static_path)
+    )
     for child in parser.root._children:
         parent.append(child)
     return None
@@ -608,7 +666,7 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
 
         self.body = HTMLTag("tbody")
 
-        self.root = HTMLTag("table")
+        self.root = HTMLTag("table", attributes={"class": "verbatim"})
         self.root.append(self.body)
 
         self.output_stack = []
@@ -795,6 +853,20 @@ def references_reference(
     return anchor
 
 
+def _make_relative(from_: PurePath, to: PurePath) -> Optional[PurePath]:
+    # XXX: This path stuff is most certainly broken.
+
+    if from_ == to:
+        # Can't represent an empty path with PurePath (becomes "." instead)
+        return None
+
+    common_path = commonpath((from_, to))
+
+    parents = len(from_.relative_to(common_path).parents) - 1
+
+    return PurePath(*[".."] * parents) / to.relative_to(common_path)
+
+
 def _render_reference(
     document: Document, reference: references.Reference
 ) -> HTMLTag:
@@ -815,27 +887,19 @@ def _render_reference(
     output_path = document.source.output_path
     definition_path = definitions[0].source.output_path
 
-    if output_path == definition_path:
-        relative_path = ""
+    relative_path = _make_relative(output_path, definition_path)
+    if relative_path is None:
+        relative_path_str = ""
     else:
-        common_path = commonpath((output_path, definition_path))
-
-        parents = len(output_path.relative_to(common_path).parents) - 1
-
-        relative_path = (
-            str(
-                PurePath(*[".."] * parents)
-                / definition_path.relative_to(common_path)
-            )
-            + ".html"
-        )  # TODO: Don't hardcode extension.
+        # TODO: Don't hardcode extension.
+        relative_path_str = str(relative_path) + ".html"
 
     fragment = f"{definitions[0].identifier}:{definitions[0].specifier}"
     anchor.attributes["href"] = urlunsplit(
         (
             "",  # scheme
             "",  # host
-            pathname2url(relative_path),  # path
+            pathname2url(relative_path_str),  # path
             "",  # query
             fragment,  # fragment
         )

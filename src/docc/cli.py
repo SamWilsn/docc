@@ -96,11 +96,18 @@ def main() -> None:
         rmtree(output_root, ignore_errors=True)
 
         for source, document in documents.items():
+            extension = document.extension()
+
+            if extension is None:
+                logging.error(
+                    "document from `%s` does not specify a file extension",
+                    source.relative_path,
+                )
+                continue
+
             output_path = output_root / source.output_path
             output_path = Path(
-                output_path.with_suffix(
-                    output_path.suffix + settings.output.extension
-                )
+                output_path.with_suffix(output_path.suffix + extension)
             )
 
             output_path.parent.mkdir(parents=True, exist_ok=True)

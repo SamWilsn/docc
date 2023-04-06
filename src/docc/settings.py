@@ -92,7 +92,6 @@ class Output:
     """
 
     path: Optional[Path]
-    extension: str
 
 
 class Settings:
@@ -141,7 +140,6 @@ class Settings:
 
         self.output = Output(
             path=output_path,
-            extension=self._settings["output"]["extension"],
         )
 
     def for_plugin(self, name: str) -> PluginSettings:

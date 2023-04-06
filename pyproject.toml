@@ -12,6 +12,7 @@ line-length = 79
 
 [tool.docc]
 discovery = [
+    "docc.html.discover",
     "docc.cst.discover",
     "docc.listing.discover",
 ]
@@ -19,6 +20,7 @@ discovery = [
 build = [
     "docc.cst.build",
     "docc.listing.build",
+    "docc.resources.build",
 ]
 
 transform = [
@@ -35,4 +37,3 @@ paths = [
 
 [tool.docc.output]
 path = "docs"
-extension = ".html"

@@ -1,0 +1,3 @@
+[submodule "vendor/chota"]
+	path = src/docc/plugins/html/static/chota
+	url = https://github.com/jenil/chota.git

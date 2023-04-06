@@ -1,0 +1,89 @@
+/*!
+ * docc | MIT License | https://github.com/SamWilsn/docc
+ */
+:root {
+    --default-color: black;
+    --default-font-weight: normal;
+
+    --keyword-color: blue;
+    --keyword-font-weight: bold;
+
+    --literal-color: teal;
+
+    --name-color: maroon;
+}
+
+pre {
+    margin: 0;
+    padding: 0;
+}
+
+table.verbatim {
+    width: initial;
+}
+
+table.verbatim > tbody > tr > td,
+table.verbatim > tbody > tr > th {
+    padding: 0;
+}
+
+/* Resets */
+.hi * {
+    color: var(--default-color);
+    font-weight: var(--default-font-weight);
+}
+
+/* Theme */
+.hi a {
+    text-decoration: none;
+    border-bottom: 1px dotted rgba(0, 0, 0, 0.3);
+}
+
+.hi-function-def,
+.hi-and,
+.hi-or,
+.hi-for,
+.hi-while,
+.hi-comp-for,
+.hi-comp-if,
+.hi-if,
+.hi-else,
+.hi-elif,
+.hi-if-exp,
+.hi-is,
+.hi-is-not,
+.hi-continue,
+.hi-assert,
+.hi-return,
+.hi-pass,
+.hi-not,
+.hi-raise,
+.hi-from,
+.hi-try,
+.hi-except-handler,
+.hi-with,
+.hi-as-name {
+    color: var(--keyword-color);
+    font-weight: var(--keyword-font-weight);
+}
+
+.hi-simple-string,
+.hi-formatted-string,
+.hi-formatted-string-text,
+.hi-formatted-string-expression,
+.hi-integer {
+    color: var(--literal-color);
+}
+
+.hi-formatted-string-expression {
+    font-weight: bold;
+}
+
+.hi-name {
+    color: var(--name-color);
+}
+
+.hi-call > .hi-name,
+.hi-call > .hi-attribute > .hi-name:last-child {
+    font-weight: bold;
+}

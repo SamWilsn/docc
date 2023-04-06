@@ -17,6 +17,7 @@
 Documents are the in-flight representation of a Source.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from io import StringIO, TextIOBase
@@ -131,8 +132,15 @@ class OutputNode(Node):
     A Node that understands how to write to a file.
     """
 
+    @property
     @abstractmethod
-    def output(self, destination: TextIOBase) -> None:
+    def extension(self) -> str:
+        """
+        The preferred file extension for this node.
+        """
+
+    @abstractmethod
+    def output(self, document: "Document", destination: TextIOBase) -> None:
         """
         Write this Node to destination.
         """
@@ -191,16 +199,41 @@ class _StrVisitor(Visitor):
 
 class _OutputVisitor(Visitor):
     destination: TextIOBase
+    document: "Document"
 
-    def __init__(self, destination: TextIOBase) -> None:
+    def __init__(self, document: "Document", destination: TextIOBase) -> None:
+        self.document = document
         self.destination = destination
 
     def enter(self, node: Node) -> Visit:
         if isinstance(node, OutputNode):
-            node.output(self.destination)
+            node.output(self.document, self.destination)
             return Visit.SkipChildren
         else:
             return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass
+
+
+class _ExtensionVisitor(Visitor):
+    extension: Optional[str]
+
+    def __init__(self) -> None:
+        self.extension = None
+
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, OutputNode):
+            extension = node.extension
+            if self.extension is not None and self.extension != extension:
+                logging.warning(
+                    "document has extension `%s` but node wants `%s`",
+                    self.extension,
+                    extension,
+                )
+            else:
+                self.extension = extension
+        return Visit.TraverseChildren
 
     def exit(self, node: Node) -> None:
         pass
@@ -232,4 +265,12 @@ class Document:
         """
         Attempt to write this document to destination.
         """
-        self.root.visit(_OutputVisitor(destination))
+        self.root.visit(_OutputVisitor(self, destination))
+
+    def extension(self) -> Optional[str]:
+        """
+        Find the file extension for this document.
+        """
+        visitor = _ExtensionVisitor()
+        self.root.visit(visitor)
+        return visitor.extension
