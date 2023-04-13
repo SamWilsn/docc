@@ -193,6 +193,28 @@ class Name(Node):
         raise TypeError()
 
 
+@dataclass(repr=False)
+class Access(PythonNode):
+    """
+    One level of attribute access.
+
+    The example `foo.bar.baz` should be represented as:
+
+    ```python
+    Access(
+        value=Access(
+            value=Name(name="foo"),
+            attribute=Name(name="bar"),
+        ),
+        attribute=Name(name="baz"),
+    )
+    ```
+    """
+
+    value: Node = dataclasses.field(default_factory=BlankNode)
+    attribute: Node = dataclasses.field(default_factory=BlankNode)
+
+
 @dataclass
 class Docstring(Node):
     """

@@ -25,6 +25,73 @@
     </div>
     {% endif %}
 
+    <nav aria-labelledby="module-members">
+        <h3 id="module-members">Members</h3>
+        <ul>
+            {% with attributes = node|find("docc.languages.python:Attribute") %}
+            {% if attributes %}
+            <li>
+                <h4>
+                    Attributes
+                </h4>
+
+                <ul>
+                    {% for (definition, attribute) in attributes %}
+                    {% for name in attribute.names %}
+                    <li>
+                        {% reference definition.identifier %}
+                        {{ name|html }}
+                        {% endreference %}
+                    </li>
+                    {% endfor %}
+                    {% endfor %}
+                </ul>
+            </li>
+            {% endif %}
+            {% endwith %}
+
+            {% with classes = node|find("docc.languages.python:Class") %}
+            {% if classes %}
+            <li>
+                <h4>
+                    Classes
+                </h4>
+
+                <ul>
+                    {% for (definition, class) in classes %}
+                    <li>
+                        {% reference definition.identifier %}
+                        {{ class.name|html }}
+                        {% endreference %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </li>
+            {% endif %}
+            {% endwith %}
+
+            {% with functions = node|find("docc.languages.python:Function") %}
+            {% if functions %}
+            <li>
+                <h4>
+                    Functions
+                </h4>
+
+                <ul>
+                    {% for (definition, function) in functions %}
+                    <li>
+                        {% reference definition.identifier %}
+                        {{ function.name|html }}
+                        {% endreference %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </li>
+            {% endif %}
+            {% endwith %}
+        </ul>
+    </nav>
+
     {% for member in node.members %}
     {{ member|html }}
     {% endfor %}

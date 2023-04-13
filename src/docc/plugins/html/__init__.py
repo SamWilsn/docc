@@ -42,7 +42,11 @@ from urllib.parse import urlunsplit
 from urllib.request import pathname2url
 
 import markupsafe
-from jinja2 import Environment, PackageLoader, pass_context, select_autoescape
+from jinja2 import Environment, PackageLoader
+from jinja2 import nodes as j2
+from jinja2 import pass_context, select_autoescape
+from jinja2.ext import Extension
+from jinja2.parser import Parser
 from jinja2.runtime import Context
 from typing_extensions import TypeAlias
 
@@ -226,6 +230,7 @@ class HTMLRoot(OutputNode):
             rendered.write(markup)
 
         env = Environment(
+            extensions=[_ReferenceExtension],
             loader=PackageLoader("docc.plugins.html"),
             autoescape=select_autoescape(),
         )
@@ -310,7 +315,8 @@ class HTMLVisitor(Visitor):
         self.renderers = {}
         self.document = document
 
-    def _renderer(self, type_: Type[Node]) -> Callable[..., object]:
+    def _renderer(self, node: Node) -> Callable[..., object]:
+        type_ = node.__class__
         try:
             return self.renderers[type_]
         except KeyError:
@@ -320,7 +326,9 @@ class HTMLVisitor(Visitor):
         try:
             renderer = self.entry_points[key].load()
         except KeyError as e:
-            raise PluginError(f"no renderer found for `{key}`") from e
+            raise PluginError(
+                f"no renderer found for `{key}` (for node `{node}`)"
+            ) from e
 
         if not callable(renderer):
             raise PluginError(f"renderer for `{key}` is not callable")
@@ -336,7 +344,7 @@ class HTMLVisitor(Visitor):
         top = self.stack[-1]
         assert isinstance(top, (HTMLRoot, HTMLTag))
 
-        renderer = self._renderer(node.__class__)
+        renderer = self._renderer(node)
         result = renderer(self.document, top, node)
 
         if result is None:
@@ -459,6 +467,97 @@ class HTMLParser(html.parser.HTMLParser):
         raise NotImplementedError("unknown HTML declaration")
 
 
+class _FindVisitor(Visitor):
+    class_: str
+    found: List[Tuple[references.Definition, Node]]
+    max_depth: int
+    _definitions: List[references.Definition]
+
+    def __init__(self, class_: str, max_depth: int = 1) -> None:
+        self.class_ = class_
+        self.found = []
+        self.max_depth = max_depth
+        self._definitions = []
+
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, references.Definition):
+            self._definitions.append(node)
+
+        if len(self._definitions) > self.max_depth:
+            return Visit.SkipChildren
+
+        try:
+            definition = self._definitions[-1]
+        except IndexError:
+            return Visit.TraverseChildren
+
+        type_ = node.__class__
+        full_name = f"{type_.__module__}:{type_.__qualname__}"
+
+        if full_name == self.class_:
+            self.found.append((definition, node))
+            return Visit.SkipChildren
+
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        if isinstance(node, references.Definition):
+            popped = self._definitions.pop()
+            assert node == popped
+
+
+class _ReferenceExtension(Extension):
+    tags = {"reference"}
+
+    def parse(self, parser: Parser) -> j2.Node:
+        lineno = next(parser.stream).lineno
+
+        # two arguments: the identifier of the reference, and the context
+        args = [parser.parse_expression(), j2.ContextReference()]
+
+        body = parser.parse_statements(
+            ("name:endreference",), drop_needle=True
+        )
+
+        return j2.CallBlock(
+            self.call_method("_reference_support", args), [], [], body
+        ).set_lineno(lineno)
+
+    def _reference_support(
+        self, identifier: str, context: Context, caller: Callable[[], str]
+    ) -> markupsafe.Markup:
+        parser = HTMLParser()
+        parser.feed(caller())
+
+        children = parser.root._children
+
+        output = ""
+        for child in children:
+            if isinstance(child, markupsafe.Markup):
+                output += child
+            elif isinstance(child, str):
+                output += markupsafe.escape(child)
+            else:
+                reference = references.Reference(
+                    identifier=identifier, child=child
+                )
+                output += _html_filter(context, reference)
+
+        return markupsafe.Markup(output)
+
+
+def _find_filter(
+    value: object,
+    class_: object,
+) -> Sequence[Tuple[references.Definition, Node]]:
+    assert isinstance(value, Node)
+    assert isinstance(class_, str)
+
+    visitor = _FindVisitor(class_)
+    value.visit(visitor)
+    return visitor.found
+
+
 @pass_context
 def _html_filter(
     context: Context, value: object
@@ -501,10 +600,12 @@ def _render_template(
     assert isinstance(parent, (HTMLTag, HTMLRoot))
     static_path = _static_path_from(document)
     env = Environment(
+        extensions=[_ReferenceExtension],
         loader=PackageLoader("docc.plugins.html"),
         autoescape=select_autoescape(),
     )
     env.filters["html"] = _html_filter
+    env.filters["find"] = _find_filter
     template = env.get_template(template_name)
     parser = HTMLParser()
     parser.feed(
@@ -563,6 +664,18 @@ def python_function(
     """
     assert isinstance(function, python.Function)
     return _render_template(document, parent, "python/function.html", function)
+
+
+def python_access(
+    document: object,
+    parent: object,
+    access: object,
+) -> RenderResult:
+    """
+    Render a python Access as HTML.
+    """
+    assert isinstance(access, python.Access)
+    return _render_template(document, parent, "python/access.html", access)
 
 
 def python_name(
@@ -853,6 +966,34 @@ def references_reference(
     return anchor
 
 
+def html_tag(
+    document: object,
+    parent: object,
+    html_tag: object,
+) -> RenderResult:
+    """
+    Render an HTMLTag as HTML.
+    """
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
+    assert isinstance(html_tag, HTMLTag)
+    parent.append(html_tag)
+    return None
+
+
+def text_node(
+    document: object,
+    parent: object,
+    text_node: object,
+) -> RenderResult:
+    """
+    Render TextNode as HTML.
+    """
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
+    assert isinstance(text_node, TextNode)
+    parent.append(text_node)
+    return None
+
+
 def _make_relative(from_: PurePath, to: PurePath) -> Optional[PurePath]:
     # XXX: This path stuff is most certainly broken.
 
@@ -870,8 +1011,6 @@ def _make_relative(from_: PurePath, to: PurePath) -> Optional[PurePath]:
 def _render_reference(
     document: Document, reference: references.Reference
 ) -> HTMLTag:
-    anchor = HTMLTag("a")
-
     try:
         definitions = list(document.index.lookup(reference.identifier))
     except ReferenceError as error:
@@ -879,30 +1018,54 @@ def _render_reference(
             reference.identifier, source=document.source
         ) from error
 
-    if len(definitions) != 1:
-        raise NotImplementedError()
-
-    # XXX: This path stuff is most certainly broken.
-
-    output_path = document.source.output_path
-    definition_path = definitions[0].source.output_path
-
-    relative_path = _make_relative(output_path, definition_path)
-    if relative_path is None:
-        relative_path_str = ""
-    else:
-        # TODO: Don't hardcode extension.
-        relative_path_str = str(relative_path) + ".html"
-
-    fragment = f"{definitions[0].identifier}:{definitions[0].specifier}"
-    anchor.attributes["href"] = urlunsplit(
-        (
-            "",  # scheme
-            "",  # host
-            pathname2url(relative_path_str),  # path
-            "",  # query
-            fragment,  # fragment
+    if not definitions:
+        raise NotImplementedError(
+            f"no definitions for `{reference.identifier}`"
         )
+
+    multi = len(definitions) > 1
+    anchors = HTMLTag(
+        "div", attributes={"class": "tooltip-content", "role": "tooltip"}
     )
 
-    return anchor
+    for definition in definitions:
+        anchor = HTMLTag("a")
+        anchors.append(anchor)
+
+        # XXX: This path stuff is most certainly broken.
+
+        output_path = document.source.output_path
+        definition_path = definition.source.output_path
+
+        relative_path = _make_relative(output_path, definition_path)
+        if relative_path is None:
+            relative_path_str = ""
+        else:
+            # TODO: Don't hardcode extension.
+            relative_path_str = str(relative_path) + ".html"
+
+        fragment = f"{definition.identifier}:{definition.specifier}"
+        anchor.attributes["href"] = urlunsplit(
+            (
+                "",  # scheme
+                "",  # host
+                pathname2url(relative_path_str),  # path
+                "",  # query
+                fragment,  # fragment
+            )
+        )
+
+        if multi:
+            anchor.append(TextNode(fragment))
+
+    if not multi:
+        anchor = anchors.children[0]
+        assert isinstance(anchor, HTMLTag)
+        return anchor
+
+    container = HTMLTag(
+        "div", attributes={"class": "tooltip", "tabindex": "0"}
+    )
+    container.append(anchors)
+
+    return container

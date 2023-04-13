@@ -18,13 +18,78 @@ pre {
     padding: 0;
 }
 
-table.verbatim {
-    width: initial;
+table.verbatim > tbody > tr > td {
+    width: 100%;
+    background-color: var(--bg-secondary-color);
+}
+
+table.verbatim > tbody > tr > th {
+    white-space: nowrap;
 }
 
 table.verbatim > tbody > tr > td,
 table.verbatim > tbody > tr > th {
-    padding: 0;
+    padding: 0 0.5ex;
+}
+
+section section {
+    padding-left: 1em;
+}
+
+details > summary {
+    list-style: none;
+    display: flex;
+    flex-grow: 1;
+    background-color: var(--bg-secondary-color);
+}
+
+details > summary::marker {
+    content: '';
+    display: none;
+}
+
+details > summary::after {
+    content: 'show source';
+    margin-left: auto;
+    margin-right: 1ex;
+    cursor: pointer;
+    color: var(--color-primary);
+    white-space: nowrap;
+}
+
+details[open] > summary::after {
+    content: 'hide source';
+}
+
+.tooltip {
+    display: inline;
+    position: relative;
+}
+
+.tooltip > :not(:first-child) {
+    color: #177cb9;
+}
+
+.tooltip-content {
+    display: none;
+    position: absolute;
+    padding: 1ex;
+    box-shadow: 0px 10px 15px -3px rgba(0,0,0,0.1);
+    background-color: var(--bg-secondary-color);
+    min-width: 100%;
+    min-height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+.tooltip:hover > .tooltip-content,
+.tooltip:focus-within > .tooltip-content {
+  display: block;
+}
+
+.tooltip-content > a {
+    display: block;
 }
 
 /* Resets */
@@ -55,6 +120,7 @@ table.verbatim > tbody > tr > th {
 .hi-continue,
 .hi-assert,
 .hi-return,
+.hi-yield,
 .hi-pass,
 .hi-not,
 .hi-raise,

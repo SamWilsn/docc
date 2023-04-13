@@ -15,10 +15,16 @@
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
 <section>
-    {{- node.body|html -}}
+    <h3>
+        {% for name in node.names %}
+        {{ name|html -}}
+        {%- if not loop.last %}, {% endif %}
+        {% endfor %}
+    </h3>
     {% if node.docstring %}
     <div class="docstring">
         {{ node.docstring|html }}
     </div>
     {% endif %}
+    {{- node.body|html -}}
 </section>

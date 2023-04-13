@@ -21,6 +21,7 @@ import glob
 import logging
 import os.path
 from collections import defaultdict
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import PurePath
 from typing import (
@@ -672,13 +673,13 @@ class _TransformVisitor(Visitor):
         if docstring:
             attribute.docstring = docstring
 
+        for target in targets:
+            names.append(deepcopy(target))
+
         if isinstance(self.document.source, TextSource):
             attribute.body = _VerbatimTransform.apply(
                 self.document.source, node
             )
-
-        for target in targets:
-            names.append(target)
 
         maybe_definition = attribute
         for name_node in names:
@@ -997,6 +998,7 @@ class _NameTransformVisitor(Visitor):
         self.stack = []
 
     def enter(self, node: Node) -> Visit:
+        new_node = node
         if isinstance(node, CstNode):
             cst_node = node.cst_node
             if isinstance(cst_node, (cst.Name, cst.SimpleString)):
@@ -1006,10 +1008,17 @@ class _NameTransformVisitor(Visitor):
                 except IndexError:
                     full_name = None
 
-                name = python.Name(cst_node.value, full_name)
-                self.stack[-1].replace_child(node, name)
+                new_node = python.Name(cst_node.value, full_name)
+            elif isinstance(cst_node, cst.Attribute):
+                new_node = python.Access(
+                    value=node.find_child(cst_node.value),
+                    attribute=node.find_child(cst_node.attr),
+                )
 
-        self.stack.append(node)
+        if new_node != node:
+            self.stack[-1].replace_child(node, new_node)
+
+        self.stack.append(new_node)
         return Visit.TraverseChildren
 
     def exit(self, node: Node) -> None:

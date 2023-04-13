@@ -25,7 +25,9 @@ getitem
 globbed
 isabstract
 islice
+j2
 libcst
+lineno
 lvalue
 lvalues
 mailto

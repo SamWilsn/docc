@@ -14,20 +14,4 @@
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
-<section>
-    <h3>{{ node.name|html }}</h3>
-    {% if node.docstring %}
-    <div class="docstring">
-        {{ node.docstring|html }}
-    </div>
-    {% endif %}
-    {% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
-    <details open>
-        <summary>
-            <code>
-            {%- if node.asynchronous %}async {% endif -%}
-def {{ node.name|html }}({% for arg in node.parameters %}{{ arg|html }}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:</code>
-        </summary>
-        {{- node.body|html -}}
-    </details>
-</section>
+{% if node.value %}{{ node.value|html }}.{% endif %}{{ node.attribute|html }}
