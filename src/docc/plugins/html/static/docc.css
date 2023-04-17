@@ -61,6 +61,33 @@ details[open] > summary::after {
     content: 'hide source';
 }
 
+/* Module Table of Contents */
+.module {
+    display: flex;
+    flex-direction: row-reverse;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 3em;
+}
+
+.module > .members {
+    flex: 1;
+}
+
+.module > .toc {
+    flex: 0 0 200px;
+    padding-left: 1em;
+    margin-top: 3.85em;
+    word-wrap: anywhere;
+}
+
+.module > .toc ul, .module > .toc ol {
+    list-style: none;
+    padding-left: 0;
+    font-size: 1.3rem;
+}
+
+/* Reference Tooltips */
 .tooltip {
     display: inline;
     position: relative;
@@ -81,6 +108,7 @@ details[open] > summary::after {
     top: 0;
     left: 0;
     z-index: 1;
+    width: max-content;
 }
 
 .tooltip:hover > .tooltip-content,

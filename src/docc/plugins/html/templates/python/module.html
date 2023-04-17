@@ -14,19 +14,26 @@
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
-<section>
-    {% if node.name %}
-    <h2>{{ node.name|html }}</h2>
-    {% endif %}
+<section class="module">
+    <div class="members">
+        {% if node.name %}
+        <h2>{{ node.name|html }}</h2>
+        {% endif %}
 
-    {% if node.docstring %}
-    <div class="docstring">
-        {{ node.docstring|html }}
+        {% if node.docstring %}
+        <div class="docstring">
+            {{ node.docstring|html }}
+        </div>
+        {% endif %}
+
+
+        {% for member in node.members %}
+        {{ member|html }}
+        {% endfor %}
     </div>
-    {% endif %}
 
-    <nav aria-labelledby="module-members">
-        <h3 id="module-members">Members</h3>
+    <nav class="toc">
+        <h3>Members</h3>
         <ul>
             {% with attributes = node|find("docc.languages.python:Attribute") %}
             {% if attributes %}
@@ -91,8 +98,4 @@
             {% endwith %}
         </ul>
     </nav>
-
-    {% for member in node.members %}
-    {{ member|html }}
-    {% endfor %}
 </section>
