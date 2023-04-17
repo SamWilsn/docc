@@ -23,7 +23,7 @@
     {% endif %}
     {% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
     <details open>
-        <summary>
+        <summary class="code-like">
             <code>
             {%- if node.asynchronous %}async {% endif -%}
 def {{ node.name|html }}({% for arg in node.parameters %}{{ arg|html }}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:</code>

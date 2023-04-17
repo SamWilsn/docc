@@ -11,11 +11,24 @@
     --literal-color: teal;
 
     --name-color: maroon;
+
+    --code-max-width: 100%;
 }
 
 pre {
     margin: 0;
     padding: 0;
+}
+
+.code-like {
+    font-family: var(--font-family-mono);
+    background-color: var(--bg-secondary-color);
+    max-width: var(--code-max-width);
+    white-space: nowrap;
+}
+
+table.verbatim {
+    max-width: var(--code-max-width);
 }
 
 table.verbatim > tbody > tr > td {
@@ -34,13 +47,14 @@ table.verbatim > tbody > tr > th {
 
 section section {
     padding-left: 1em;
+    margin-top: 2em;
+    border-left: 3px solid var(--bg-secondary-color);
 }
 
 details > summary {
     list-style: none;
     display: flex;
     flex-grow: 1;
-    background-color: var(--bg-secondary-color);
 }
 
 details > summary::marker {
@@ -74,6 +88,11 @@ details[open] > summary::after {
     flex: 1;
 }
 
+.module > .members > section {
+    max-width: 960px;
+    width: 100%;
+}
+
 .module > .toc {
     flex: 0 0 200px;
     padding-left: 1em;
@@ -85,6 +104,12 @@ details[open] > summary::after {
     list-style: none;
     padding-left: 0;
     font-size: 1.3rem;
+}
+
+/* Class Table of Contents */
+.class > .toc ul, .class > .toc ol {
+    list-style: none;
+    margin: 0;
 }
 
 /* Reference Tooltips */
@@ -146,6 +171,7 @@ details[open] > summary::after {
 .hi-is,
 .hi-is-not,
 .hi-continue,
+.hi-break,
 .hi-assert,
 .hi-return,
 .hi-yield,
@@ -156,6 +182,7 @@ details[open] > summary::after {
 .hi-try,
 .hi-except-handler,
 .hi-with,
+.hi-class,
 .hi-as-name {
     color: var(--keyword-color);
     font-weight: var(--keyword-font-weight);
