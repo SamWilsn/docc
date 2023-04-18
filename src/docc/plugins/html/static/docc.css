@@ -86,10 +86,10 @@ details[open] > summary::after {
 
 .module > .members {
     flex: 1;
+    max-width: 960px;
 }
 
 .module > .members > section {
-    max-width: 960px;
     width: 100%;
 }
 
