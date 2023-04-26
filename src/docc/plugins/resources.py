@@ -21,11 +21,11 @@ import shutil
 import sys
 from io import TextIOBase
 from pathlib import PurePath
-from typing import Dict, Sequence, Set, Tuple, Type, TypeVar
+from typing import Dict, Set, Tuple, Type, TypeVar
 
 from docc.build import Builder
+from docc.context import Context
 from docc.document import Document, Node, OutputNode
-from docc.references import Index
 from docc.settings import PluginSettings
 from docc.source import Source
 
@@ -119,7 +119,7 @@ class ResourceNode(OutputNode):
         """
         return self._extension
 
-    def output(self, document: Document, destination: TextIOBase) -> None:
+    def output(self, context: Context, destination: TextIOBase) -> None:
         """
         Write this Node to destination.
         """
@@ -139,8 +139,6 @@ class ResourceBuilder(Builder):
 
     def build(
         self,
-        index: Index,
-        all_sources: Sequence[Source],
         unprocessed: Set[Source],
         processed: Dict[Source, Document],
     ) -> None:
@@ -154,8 +152,5 @@ class ResourceBuilder(Builder):
 
         for source in source_set:
             processed[source] = Document(
-                all_sources,
-                index,
-                source,
                 ResourceNode(source.resource, source.extension),
             )

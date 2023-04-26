@@ -20,7 +20,7 @@ Transforms modify Documents.
 from abc import ABC, abstractmethod
 from typing import Sequence, Tuple
 
-from .document import Document
+from .context import Context
 from .plugins.loader import Loader
 from .settings import PluginSettings, Settings
 
@@ -38,7 +38,7 @@ class Transform(ABC):
         pass
 
     @abstractmethod
-    def transform(self, document: Document) -> None:
+    def transform(self, context: Context) -> None:
         """
         Apply the transformation to the given document.
         """

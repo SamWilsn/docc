@@ -21,15 +21,36 @@ import argparse
 import logging
 import sys
 from contextlib import ExitStack
+from io import TextIOBase
 from pathlib import Path
 from shutil import rmtree
 from typing import Dict, Set
 
 from . import build, discover, transform
-from .document import Document
+from .context import Context
+from .document import Document, Node, OutputNode, Visit, Visitor
 from .references import Index
 from .settings import Settings
 from .source import Source
+
+
+class _OutputVisitor(Visitor):
+    destination: TextIOBase
+    context: Context
+
+    def __init__(self, context: Context, destination: TextIOBase) -> None:
+        self.context = context
+        self.destination = destination
+
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, OutputNode):
+            node.output(self.context, self.destination)
+            return Visit.SkipChildren
+        else:
+            return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass
 
 
 def main() -> None:
@@ -74,7 +95,6 @@ def main() -> None:
                 logging.info("[%s] found source: %s", name, item.relative_path)
             known.add(item)
 
-    all_sources = list(known)
     index = Index()
 
     with ExitStack() as exit_stack:
@@ -85,17 +105,28 @@ def main() -> None:
         documents: Dict[Source, Document] = {}
         for name, build_plugin in build_plugins:
             before = len(documents)
-            build_plugin.build(index, all_sources, known, documents)
+            build_plugin.build(known, documents)
             after = len(documents)
             logging.info("[%s] built %s documents", name, after - before)
 
+        contexts = {}
+        for source, document in documents.items():
+            contexts[source] = Context(
+                {
+                    Document: document,
+                    Index: index,
+                    Source: source,
+                }
+            )
+
         for _name, transform_plugin in transform_plugins:
-            for document in documents.values():
-                transform_plugin.transform(document)
+            for context in contexts.values():
+                transform_plugin.transform(context)
 
         rmtree(output_root, ignore_errors=True)
 
-        for source, document in documents.items():
+        for source, context in contexts.items():
+            document = context[Document]
             extension = document.extension()
 
             if extension is None:
@@ -113,4 +144,4 @@ def main() -> None:
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(output_path, "w") as destination:
-                document.output(destination)
+                document.root.visit(_OutputVisitor(context, destination))

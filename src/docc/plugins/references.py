@@ -21,8 +21,11 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from docc.context import Context
 from docc.document import BlankNode, Document, Node, Visit, Visitor
+from docc.references import Index
 from docc.settings import PluginSettings
+from docc.source import Source
 from docc.transform import Transform
 
 
@@ -74,23 +77,23 @@ class IndexTransform(Transform):
     def __init__(self, config: PluginSettings) -> None:
         super().__init__(config)
 
-    def transform(self, document: Document) -> None:
+    def transform(self, context: Context) -> None:
         """
         Apply the transformation to the given document.
         """
-        document.root.visit(_TransformVisitor(document))
+        context[Document].root.visit(_TransformVisitor(context))
 
 
 class _TransformVisitor(Visitor):
-    document: Document
+    context: Context
 
-    def __init__(self, document: Document) -> None:
-        self.document = document
+    def __init__(self, context: Context) -> None:
+        self.context = context
 
     def enter(self, node: Node) -> Visit:
         if isinstance(node, Definition):
-            definition = self.document.index.define(
-                self.document.source, node.identifier
+            definition = self.context[Index].define(
+                self.context[Source], node.identifier
             )
             assert node.specifier is None
             node.specifier = definition.specifier

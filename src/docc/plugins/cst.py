@@ -43,12 +43,12 @@ from inflection import dasherize, underscore
 from libcst.metadata import ExpressionContext
 
 from docc.build import Builder
+from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import Document, Node, Visit, Visitor
 from docc.languages import python
 from docc.languages.verbatim import Fragment, Pos, Stanza, Verbatim
 from docc.plugins.references import Definition, Reference
-from docc.references import Index
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
 from docc.transform import Transform
@@ -158,8 +158,6 @@ class PythonBuilder(Builder):
 
     def build(
         self,
-        index: Index,
-        all_sources: Sequence[Source],
         unprocessed: Set[Source],
         processed: Dict[Source, Document],
     ) -> None:
@@ -203,9 +201,6 @@ class PythonBuilder(Builder):
                 assert visitor.root is not None
 
                 document = Document(
-                    all_sources,
-                    index,
-                    source,
                     visitor.root,
                 )
 
@@ -387,16 +382,18 @@ class PythonTransform(Transform):
             config.get("excluded_references", [])
         )
 
-    def transform(self, document: Document) -> None:
+    def transform(self, context: Context) -> None:
         """
         Apply the transformation to the given document.
         """
+        document = context[Document]
+
         document.root.visit(
             _AnnotationReferenceTransformVisitor(self.excluded_references)
         )
 
         if isinstance(document.root, CstNode):
-            visitor = _TransformVisitor(document)
+            visitor = _TransformVisitor(context)
             document.root.visit(visitor)
             assert visitor.root is not None
             document.root = visitor.root
@@ -415,13 +412,15 @@ class _TransformVisitor(Visitor):
     root: Optional[Node]
     old_stack: Final[List[_TransformContext]]
     new_stack: Final[List[Node]]
+    context: Final[Context]
     document: Final[Document]
 
-    def __init__(self, document: Document) -> None:
+    def __init__(self, context: Context) -> None:
         self.root = None
         self.old_stack = []
         self.new_stack = []
-        self.document = document
+        self.document = context[Document]
+        self.context = context
 
     def push_new(self, node: Node) -> None:
         if self.root is None:
@@ -470,7 +469,7 @@ class _TransformVisitor(Visitor):
 
         class_def.name = node.find_child(cst_node.name)
 
-        source = self.document.source
+        source = self.context[Source]
         if isinstance(source, TextSource):
             decorators = []
             for cst_decorator in cst_node.decorators:
@@ -545,7 +544,7 @@ class _TransformVisitor(Visitor):
         if cst_node.returns is not None:
             function_def.return_type = node.find_child(cst_node.returns)
 
-        source = self.document.source
+        source = self.context[Source]
         if isinstance(source, TextSource):
             body = node.find_child(cst_node.body)
             function_def.body = _VerbatimTransform.apply(source, body)
@@ -676,10 +675,9 @@ class _TransformVisitor(Visitor):
         for target in targets:
             names.append(deepcopy(target))
 
-        if isinstance(self.document.source, TextSource):
-            attribute.body = _VerbatimTransform.apply(
-                self.document.source, node
-            )
+        source = self.context[Source]
+        if isinstance(source, TextSource):
+            attribute.body = _VerbatimTransform.apply(source, node)
 
         maybe_definition = attribute
         for name_node in names:

@@ -34,6 +34,7 @@ from mistletoe import span_token as spans
 from mistletoe.token import Token as MarkdownToken
 from typing_extensions import TypeAlias
 
+from docc.context import Context
 from docc.document import Document, Node, Visit, Visitor
 from docc.languages import python
 from docc.plugins import html
@@ -84,14 +85,14 @@ class DocstringTransform(Transform):
         Create a Transform with the given configuration.
         """
 
-    def transform(self, document: Document) -> None:
+    def transform(self, context: Context) -> None:
         """
         Apply the transformation to the given document.
         """
         visitor = _DocstringVisitor()
-        document.root.visit(visitor)
+        context[Document].root.visit(visitor)
         assert visitor.root is not None
-        document.root = visitor.root
+        context[Document].root = visitor.root
 
 
 class _DocstringVisitor(Visitor):
@@ -455,15 +456,17 @@ _RENDERERS: Mapping[str, _RENDER_FUNC] = {
 
 
 def render_html(
-    document: object,
+    context: object,
     parent: object,
     node: object,
 ) -> html.RenderResult:
     """
     Render a markdown node as HTML.
     """
-    assert isinstance(document, Document)
+    assert isinstance(context, Context)
     assert isinstance(parent, (html.HTMLRoot, html.HTMLTag))
     assert isinstance(node, MarkdownNode)
 
-    return _RENDERERS[node.token.__class__.__name__](document, parent, node)
+    return _RENDERERS[node.token.__class__.__name__](
+        context[Document], parent, node
+    )

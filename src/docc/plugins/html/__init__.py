@@ -47,16 +47,17 @@ from jinja2 import nodes as j2
 from jinja2 import pass_context, select_autoescape
 from jinja2.ext import Extension
 from jinja2.parser import Parser
-from jinja2.runtime import Context
+from jinja2.runtime import Context as JinjaContext
 from typing_extensions import TypeAlias
 
+from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
 from docc.languages import python, verbatim
 from docc.plugins import references
 from docc.plugins.loader import PluginError
 from docc.plugins.resources import ResourceNode, ResourceSource
-from docc.references import ReferenceError
+from docc.references import Index, ReferenceError
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
 from docc.transform import Transform
@@ -214,7 +215,7 @@ class HTMLRoot(OutputNode):
         """
         self._children.append(node)
 
-    def output(self, document: Document, destination: TextIOBase) -> None:
+    def output(self, context: Context, destination: TextIOBase) -> None:
         """
         Attempt to write this node to destination as HTML.
         """
@@ -236,7 +237,7 @@ class HTMLRoot(OutputNode):
         )
         template = env.get_template("base.html")
         body = rendered.getvalue()
-        static_path = _static_path_from(document)
+        static_path = _static_path_from(context)
         destination.write(
             template.render(
                 body=markupsafe.Markup(body), static_path=static_path
@@ -304,16 +305,16 @@ class HTMLVisitor(Visitor):
     ]
     root: HTMLRoot
     stack: List[Union[HTMLRoot, HTMLTag, TextNode, BlankNode]]
-    document: Document
+    context: Context
 
-    def __init__(self, document: Document) -> None:
+    def __init__(self, context: Context) -> None:
         # Discover render functions.
         found = entry_points(group="docc.plugins.html")
         self.entry_points = {entry.name: entry for entry in found}
         self.root = HTMLRoot()
         self.stack = [self.root]
         self.renderers = {}
-        self.document = document
+        self.context = context
 
     def _renderer(self, node: Node) -> Callable[..., object]:
         type_ = node.__class__
@@ -345,7 +346,7 @@ class HTMLVisitor(Visitor):
         assert isinstance(top, (HTMLRoot, HTMLTag))
 
         renderer = self._renderer(node)
-        result = renderer(self.document, top, node)
+        result = renderer(self.context, top, node)
 
         if result is None:
             # Always append something so the exit implementation is simpler.
@@ -376,14 +377,15 @@ class HTML(Transform):
     def __init__(self, settings: PluginSettings) -> None:
         pass
 
-    def transform(self, document: Document) -> None:
+    def transform(self, context: Context) -> None:
         """
         Apply the transformation to the given document.
         """
+        document = context[Document]
         if isinstance(document.root, ResourceNode):
             return None
 
-        visitor = HTMLVisitor(document)
+        visitor = HTMLVisitor(context)
         document.root.visit(visitor)
         assert visitor.root is not None
         document.root = visitor.root
@@ -524,7 +526,7 @@ class _ReferenceExtension(Extension):
         ).set_lineno(lineno)
 
     def _reference_support(
-        self, identifier: str, context: Context, caller: Callable[[], str]
+        self, identifier: str, context: JinjaContext, caller: Callable[[], str]
     ) -> markupsafe.Markup:
         parser = HTMLParser()
         parser.feed(caller())
@@ -560,12 +562,12 @@ def _find_filter(
 
 @pass_context
 def _html_filter(
-    context: Context, value: object
+    context: JinjaContext, value: object
 ) -> Union[markupsafe.Markup, str]:
-    document = context["document"]
-    assert isinstance(document, Document)
+    ctx = context["context"]
+    assert isinstance(ctx, Context)
     assert isinstance(value, Node)
-    visitor = HTMLVisitor(document)
+    visitor = HTMLVisitor(ctx)
     value.visit(visitor)
 
     children = []
@@ -584,21 +586,21 @@ def _html_filter(
     return markupsafe.Markup(rendered) if eval_context.autoescape else rendered
 
 
-def _static_path_from(document: Document) -> str:
+def _static_path_from(context: Context) -> str:
     return pathname2url(
         str(
-            _make_relative(document.source.output_path, PurePath("static"))
+            _make_relative(context[Source].output_path, PurePath("static"))
             or PurePath()
         )
     )
 
 
 def _render_template(
-    document: object, parent: object, template_name: str, node: Node
+    context: object, parent: object, template_name: str, node: Node
 ) -> RenderResult:
-    assert isinstance(document, Document)
+    assert isinstance(context, Context)
     assert isinstance(parent, (HTMLTag, HTMLRoot))
-    static_path = _static_path_from(document)
+    static_path = _static_path_from(context)
     env = Environment(
         extensions=[_ReferenceExtension],
         loader=PackageLoader("docc.plugins.html"),
@@ -609,7 +611,7 @@ def _render_template(
     template = env.get_template(template_name)
     parser = HTMLParser()
     parser.feed(
-        template.render(document=document, node=node, static_path=static_path)
+        template.render(context=context, node=node, static_path=static_path)
     )
     for child in parser.root._children:
         parent.append(child)
@@ -617,7 +619,7 @@ def _render_template(
 
 
 def python_module(
-    document: object,
+    context: object,
     parent: object,
     module: object,
 ) -> RenderResult:
@@ -625,11 +627,11 @@ def python_module(
     Render a python Module as HTML.
     """
     assert isinstance(module, python.Module)
-    return _render_template(document, parent, "python/module.html", module)
+    return _render_template(context, parent, "python/module.html", module)
 
 
 def python_class(
-    document: object,
+    context: object,
     parent: object,
     class_: object,
 ) -> RenderResult:
@@ -637,11 +639,11 @@ def python_class(
     Render a python Class as HTML.
     """
     assert isinstance(class_, python.Class)
-    return _render_template(document, parent, "python/class.html", class_)
+    return _render_template(context, parent, "python/class.html", class_)
 
 
 def python_attribute(
-    document: object,
+    context: object,
     parent: object,
     attribute: object,
 ) -> RenderResult:
@@ -650,12 +652,12 @@ def python_attribute(
     """
     assert isinstance(attribute, python.Attribute)
     return _render_template(
-        document, parent, "python/attribute.html", attribute
+        context, parent, "python/attribute.html", attribute
     )
 
 
 def python_function(
-    document: object,
+    context: object,
     parent: object,
     function: object,
 ) -> RenderResult:
@@ -663,11 +665,11 @@ def python_function(
     Render a python Function as HTML.
     """
     assert isinstance(function, python.Function)
-    return _render_template(document, parent, "python/function.html", function)
+    return _render_template(context, parent, "python/function.html", function)
 
 
 def python_access(
-    document: object,
+    context: object,
     parent: object,
     access: object,
 ) -> RenderResult:
@@ -675,11 +677,11 @@ def python_access(
     Render a python Access as HTML.
     """
     assert isinstance(access, python.Access)
-    return _render_template(document, parent, "python/access.html", access)
+    return _render_template(context, parent, "python/access.html", access)
 
 
 def python_name(
-    document: object,
+    context: object,
     parent: object,
     name: object,
 ) -> RenderResult:
@@ -687,11 +689,11 @@ def python_name(
     Render a python Name as HTML.
     """
     assert isinstance(name, python.Name)
-    return _render_template(document, parent, "python/name.html", name)
+    return _render_template(context, parent, "python/name.html", name)
 
 
 def python_type(
-    document: object,
+    context: object,
     parent: object,
     type_: object,
 ) -> RenderResult:
@@ -699,11 +701,11 @@ def python_type(
     Render a python Type as HTML.
     """
     assert isinstance(type_, python.Type)
-    return _render_template(document, parent, "python/type.html", type_)
+    return _render_template(context, parent, "python/type.html", type_)
 
 
 def python_list(
-    document: object,
+    context: object,
     parent: object,
     list_: object,
 ) -> RenderResult:
@@ -711,11 +713,11 @@ def python_list(
     Render a python List as HTML.
     """
     assert isinstance(list_, python.List)
-    return _render_template(document, parent, "python/list.html", list_)
+    return _render_template(context, parent, "python/list.html", list_)
 
 
 def python_tuple(
-    document: object,
+    context: object,
     parent: object,
     tuple_: object,
 ) -> RenderResult:
@@ -723,11 +725,11 @@ def python_tuple(
     Render a python List as HTML.
     """
     assert isinstance(tuple_, python.Tuple)
-    return _render_template(document, parent, "python/tuple.html", tuple_)
+    return _render_template(context, parent, "python/tuple.html", tuple_)
 
 
 def python_docstring(
-    document: object,
+    context: object,
     parent: object,
     docstring: object,
 ) -> RenderResult:
@@ -741,7 +743,7 @@ def python_docstring(
 
 
 def python_parameter(
-    document: object,
+    context: object,
     parent: object,
     parameter: object,
 ) -> RenderResult:
@@ -750,12 +752,12 @@ def python_parameter(
     """
     assert isinstance(parameter, python.Parameter)
     return _render_template(
-        document, parent, "python/parameter.html", parameter
+        context, parent, "python/parameter.html", parameter
     )
 
 
 def blank_node(
-    document: object,
+    context: object,
     parent: object,
     blank: object,
 ) -> RenderResult:
@@ -767,15 +769,17 @@ def blank_node(
 
 
 class _VerbatimVisitor(verbatim.VerbatimVisitor):
+    context: Final[Context]
     document: Final[Document]
     root: HTMLTag
     body: HTMLTag
     output_stack: List[Node]
     input_stack: List[Union[Sequence[str], references.Reference]]
 
-    def __init__(self, document: Document) -> None:
+    def __init__(self, context: Context) -> None:
         super().__init__()
-        self.document = document
+        self.context = context
+        self.document = context[Document]
 
         self.body = HTMLTag("tbody")
 
@@ -814,7 +818,7 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
             assert isinstance(top, HTMLTag)
 
             if isinstance(item, references.Reference):
-                new_node = _render_reference(self.document, item)
+                new_node = _render_reference(self.context, item)
             else:
                 classes = [f"hi-{h}" for h in item] + ["hi"]
                 new_node = HTMLTag(
@@ -882,38 +886,38 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
 
 
 def verbatim_verbatim(
-    document: Document,
+    context: Context,
     parent: object,
     node: verbatim.Verbatim,
 ) -> RenderResult:
     """
     Render a verbatim block as HTML.
     """
-    assert isinstance(document, Document)
+    assert isinstance(context, Context)
     assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(node, verbatim.Verbatim)
 
-    visitor = _VerbatimVisitor(document)
+    visitor = _VerbatimVisitor(context)
     node.visit(visitor)
     parent.append(visitor.root)
     return None
 
 
 def references_definition(
-    document: object,
+    context: object,
     parent: object,
     definition: object,
 ) -> RenderResult:
     """
     Render a Definition as HTML.
     """
-    assert isinstance(document, Document)
+    assert isinstance(context, Context)
     assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(definition, references.Definition)
 
     new_id = f"{definition.identifier}:{definition.specifier}"
 
-    visitor = HTMLVisitor(document)
+    visitor = HTMLVisitor(context)
     definition.child.visit(visitor)
 
     children = list(visitor.root.children)
@@ -943,18 +947,18 @@ def references_definition(
 
 
 def references_reference(
-    document: object,
+    context: object,
     parent: object,
     reference: object,
 ) -> RenderResult:
     """
     Render a Reference as HTML.
     """
-    assert isinstance(document, Document)
+    assert isinstance(context, Context)
     assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(reference, references.Reference)
 
-    anchor = _render_reference(document, reference)
+    anchor = _render_reference(context, reference)
     parent.append(anchor)
 
     if not reference.child:
@@ -967,7 +971,7 @@ def references_reference(
 
 
 def html_tag(
-    document: object,
+    context: object,
     parent: object,
     html_tag: object,
 ) -> RenderResult:
@@ -981,7 +985,7 @@ def html_tag(
 
 
 def text_node(
-    document: object,
+    context: object,
     parent: object,
     text_node: object,
 ) -> RenderResult:
@@ -1009,13 +1013,13 @@ def _make_relative(from_: PurePath, to: PurePath) -> Optional[PurePath]:
 
 
 def _render_reference(
-    document: Document, reference: references.Reference
+    context: Context, reference: references.Reference
 ) -> HTMLTag:
     try:
-        definitions = list(document.index.lookup(reference.identifier))
+        definitions = list(context[Index].lookup(reference.identifier))
     except ReferenceError as error:
         raise ReferenceError(
-            reference.identifier, source=document.source
+            reference.identifier, source=context[Source]
         ) from error
 
     if not definitions:
@@ -1034,7 +1038,7 @@ def _render_reference(
 
         # XXX: This path stuff is most certainly broken.
 
-        output_path = document.source.output_path
+        output_path = context[Source].output_path
         definition_path = definition.source.output_path
 
         relative_path = _make_relative(output_path, definition_path)

@@ -20,11 +20,10 @@ Builders convert Sources into Documents.
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import Dict, Iterator, Optional, Sequence, Set, Tuple, Type
+from typing import Dict, Iterator, Optional, Set, Tuple, Type
 
 from .document import Document
 from .plugins.loader import Loader
-from .references import Index
 from .settings import PluginSettings, Settings
 from .source import Source
 
@@ -44,8 +43,6 @@ class Builder(AbstractContextManager, ABC):
     @abstractmethod
     def build(
         self,
-        index: Index,
-        all_sources: Sequence[Source],
         unprocessed: Set[Source],
         processed: Dict[Source, Document],
     ) -> None:

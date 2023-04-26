@@ -21,14 +21,13 @@ import logging
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from io import StringIO, TextIOBase
-from typing import IO, Iterable, List, Optional, Sequence, Union
+from typing import IO, Iterable, List, Optional, Union
 
 import rich.markup
 import rich.tree
 from rich.console import Console
 
-from .references import Index
-from .source import Source
+from .context import Context
 
 
 class Node(ABC):
@@ -140,7 +139,7 @@ class OutputNode(Node):
         """
 
     @abstractmethod
-    def output(self, document: "Document", destination: TextIOBase) -> None:
+    def output(self, context: Context, destination: TextIOBase) -> None:
         """
         Write this Node to destination.
         """
@@ -197,25 +196,6 @@ class _StrVisitor(Visitor):
         self.stack.pop()
 
 
-class _OutputVisitor(Visitor):
-    destination: TextIOBase
-    document: "Document"
-
-    def __init__(self, document: "Document", destination: TextIOBase) -> None:
-        self.document = document
-        self.destination = destination
-
-    def enter(self, node: Node) -> Visit:
-        if isinstance(node, OutputNode):
-            node.output(self.document, self.destination)
-            return Visit.SkipChildren
-        else:
-            return Visit.TraverseChildren
-
-    def exit(self, node: Node) -> None:
-        pass
-
-
 class _ExtensionVisitor(Visitor):
     extension: Optional[str]
 
@@ -244,28 +224,13 @@ class Document:
     In-flight representation of a Source.
     """
 
-    all_sources: Sequence[Source]
-    source: Source
     root: Node
-    index: Index
 
     def __init__(
         self,
-        all_sources: Sequence[Source],
-        index: Index,
-        source: Source,
         root: Node,
     ) -> None:
-        self.all_sources = all_sources
-        self.index = index
-        self.source = source
         self.root = root
-
-    def output(self, destination: TextIOBase) -> None:
-        """
-        Attempt to write this document to destination.
-        """
-        self.root.visit(_OutputVisitor(self, destination))
 
     def extension(self) -> Optional[str]:
         """

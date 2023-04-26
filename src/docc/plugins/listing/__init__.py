@@ -19,15 +19,15 @@ Plugin that renders directory listings.
 
 from os.path import commonpath
 from pathlib import PurePath
-from typing import Dict, Final, FrozenSet, Iterator, Sequence, Set, Tuple
+from typing import Dict, Final, FrozenSet, Iterator, Set, Tuple
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from docc.build import Builder
+from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import Document, Node
 from docc.plugins import html
-from docc.references import Index
 from docc.settings import PluginSettings
 from docc.source import Source
 
@@ -109,8 +109,6 @@ class ListingBuilder(Builder):
 
     def build(
         self,
-        index: Index,
-        all_sources: Sequence[Source],
         unprocessed: Set[Source],
         processed: Dict[Source, Document],
     ) -> None:
@@ -123,9 +121,7 @@ class ListingBuilder(Builder):
         unprocessed -= to_process
 
         for source in to_process:
-            processed[source] = Document(
-                all_sources, index, source, ListingNode(source.sources)
-            )
+            processed[source] = Document(ListingNode(source.sources))
 
 
 class ListingNode(Node):
@@ -153,18 +149,18 @@ class ListingNode(Node):
 
 
 def render_html(
-    document: object,
+    context: object,
     parent: object,
     node: object,
 ) -> html.RenderResult:
     """
     Render a ListingNode as HTML.
     """
-    assert isinstance(document, Document)
+    assert isinstance(context, Context)
     assert isinstance(parent, (html.HTMLRoot, html.HTMLTag))
     assert isinstance(node, ListingNode)
 
-    output_path = document.source.output_path
+    output_path = context[Source].output_path
     entries = []
 
     for source in node.sources:
@@ -195,7 +191,7 @@ def render_html(
     )
     template = env.get_template("listing.html")
     parser = html.HTMLParser()
-    parser.feed(template.render(document=document, entries=entries))
+    parser.feed(template.render(context=context, entries=entries))
     for child in parser.root._children:
         parent.append(child)
     return None
