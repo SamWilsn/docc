@@ -56,8 +56,8 @@ from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
 from docc.languages import python, verbatim
 from docc.plugins import references
 from docc.plugins.loader import PluginError
+from docc.plugins.references import Index, ReferenceError
 from docc.plugins.resources import ResourceNode, ResourceSource
-from docc.references import Index, ReferenceError
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
 from docc.transform import Transform

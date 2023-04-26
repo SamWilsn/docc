@@ -18,15 +18,76 @@ Definitions and references for interlinking documents.
 """
 
 import dataclasses
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Dict, Iterable, Optional, Set, Tuple, Type
 
-from docc.context import Context
+from docc.context import Context, Provider
 from docc.document import BlankNode, Document, Node, Visit, Visitor
-from docc.references import Index
 from docc.settings import PluginSettings
 from docc.source import Source
 from docc.transform import Transform
+
+
+@dataclass(eq=True, frozen=True)
+class Location:
+    """
+    Location of a node.
+    """
+
+    source: Source
+    identifier: str
+    specifier: int
+
+
+class ReferenceError(Exception):
+    """
+    Exception raised when a reference doesn't match a definition.
+    """
+
+    identifier: str
+
+    def __init__(
+        self, identifier: str, source: Optional[Source] = None
+    ) -> None:
+        message = f"undefined identifier: `{identifier}`"
+
+        if source and source.relative_path:
+            message = f"in `{source.relative_path}`, {message}"
+
+        super().__init__(message)
+        self.identifier = identifier
+
+
+class Index:
+    """
+    Tracks the location of definitions.
+    """
+
+    _index: Dict[str, Set[Location]]
+
+    def __init__(self) -> None:
+        self._index = defaultdict(set)
+
+    def define(self, source: Source, identifier: str) -> Location:
+        """
+        Register a new definition in the index.
+        """
+        existing = self._index[identifier]
+        definition = Location(
+            source=source, identifier=identifier, specifier=len(existing)
+        )
+        existing.add(definition)
+        return definition
+
+    def lookup(self, identifier: str) -> Iterable[Location]:
+        """
+        Find a definition that was previously registered.
+        """
+        got = self._index[identifier]
+        if not got:
+            raise ReferenceError(identifier)
+        return got
 
 
 @dataclass(repr=False)
@@ -67,6 +128,31 @@ class Reference(Base):
     """
     A link to a Definition.
     """
+
+
+class IndexContext(Provider[Index]):
+    """
+    Injects an Index instance into the Context.
+    """
+
+    index: Index
+
+    def __init__(self, config: PluginSettings) -> None:
+        super().__init__(config)
+        self.index = Index()
+
+    @classmethod
+    def provides(class_) -> Type[Index]:
+        """
+        Return the type used as the key in the Context.
+        """
+        return Index
+
+    def provide(self) -> Index:
+        """
+        Return the object to add to the Context.
+        """
+        return self.index
 
 
 class IndexTransform(Transform):

@@ -11,6 +11,10 @@ line_length = 79
 line-length = 79
 
 [tool.docc]
+context = [
+    "docc.references.context",
+]
+
 discovery = [
     "docc.html.discover",
     "docc.cst.discover",

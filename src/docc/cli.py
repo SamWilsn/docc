@@ -24,12 +24,11 @@ from contextlib import ExitStack
 from io import TextIOBase
 from pathlib import Path
 from shutil import rmtree
-from typing import Dict, Set
+from typing import Dict, Set, Type
 
-from . import build, discover, transform
+from . import build, context, discover, transform
 from .context import Context
 from .document import Document, Node, OutputNode, Visit, Visitor
-from .references import Index
 from .settings import Settings
 from .source import Source
 
@@ -38,8 +37,8 @@ class _OutputVisitor(Visitor):
     destination: TextIOBase
     context: Context
 
-    def __init__(self, context: Context, destination: TextIOBase) -> None:
-        self.context = context
+    def __init__(self, context_: Context, destination: TextIOBase) -> None:
+        self.context = context_
         self.destination = destination
 
     def enter(self, node: Node) -> Visit:
@@ -81,8 +80,25 @@ def main() -> None:
     else:
         output_root = Path(args.output)
 
-    discover_plugins = discover.load(settings)
-    transform_plugins = transform.load(settings)
+    discover_plugins = list(discover.load(settings))
+    transform_plugins = list(transform.load(settings))
+    context_plugins = list(context.load(settings))
+
+    context_types = {}
+    for name, context_plugin in context_plugins:
+        class_ = context_plugin.provides()
+
+        try:
+            exists = context_types[class_]
+            raise Exception(
+                f"context provider `{name}`"
+                f" conflicts with `{exists}`"
+                f" (on `{class_.__name__}`)"
+            )
+        except KeyError:
+            pass
+
+        context_types[class_] = name
 
     known: Set[Source] = set()
 
@@ -94,8 +110,6 @@ def main() -> None:
             else:
                 logging.info("[%s] found source: %s", name, item.relative_path)
             known.add(item)
-
-    index = Index()
 
     with ExitStack() as exit_stack:
         build_plugins = [
@@ -111,22 +125,27 @@ def main() -> None:
 
         contexts = {}
         for source, document in documents.items():
-            contexts[source] = Context(
-                {
-                    Document: document,
-                    Index: index,
-                    Source: source,
-                }
-            )
+            context_dict: Dict[Type[object], object] = {
+                Document: document,
+                Source: source,
+            }
+
+            for _, context_plugin in context_plugins:
+                provided = context_plugin.provide()
+                class_ = context_plugin.provides()
+                assert class_ not in context_dict
+                context_dict[class_] = provided
+
+            contexts[source] = Context(context_dict)
 
         for _name, transform_plugin in transform_plugins:
-            for context in contexts.values():
-                transform_plugin.transform(context)
+            for context_ in contexts.values():
+                transform_plugin.transform(context_)
 
         rmtree(output_root, ignore_errors=True)
 
-        for source, context in contexts.items():
-            document = context[Document]
+        for source, context_ in contexts.items():
+            document = context_[Document]
             extension = document.extension()
 
             if extension is None:
@@ -144,4 +163,4 @@ def main() -> None:
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(output_path, "w") as destination:
-                document.root.visit(_OutputVisitor(context, destination))
+                document.root.visit(_OutputVisitor(context_, destination))

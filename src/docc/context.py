@@ -17,7 +17,11 @@
 Additional context provided alongside a Document.
 """
 
-from typing import Dict, Optional, Type, TypeVar
+from abc import ABC, abstractmethod
+from typing import Generic, Iterator, Mapping, Optional, Tuple, Type, TypeVar
+
+from .plugins.loader import Loader
+from .settings import PluginSettings, Settings
 
 Q = TypeVar("Q")
 
@@ -30,10 +34,10 @@ class Context:
 
     __slots__ = ("_items",)
 
-    _items: Dict[Type[object], object]
+    _items: Mapping[Type[object], object]
 
     def __init__(
-        self, items: Optional[Dict[Type[object], object]] = None
+        self, items: Optional[Mapping[Type[object], object]] = None
     ) -> None:
         if items is None:
             items = {}
@@ -64,3 +68,43 @@ class Context:
         Returns a string representation of this object.
         """
         return f"{self.__class__.__name__}({self._items!r})"
+
+
+R_co = TypeVar("R_co", covariant=True)
+
+
+class Provider(ABC, Generic[R_co]):
+    """
+    Creates objects to be inserted into Context instances.
+    """
+
+    @classmethod
+    @abstractmethod
+    def provides(class_) -> Type[R_co]:
+        """
+        Return the type to be used as the key in the Context.
+        """
+
+    @abstractmethod
+    def __init__(self, config: PluginSettings) -> None:
+        """
+        Create a Provider with the given configuration.
+        """
+
+    @abstractmethod
+    def provide(self) -> R_co:
+        """
+        Create the object to be inserted into the Context.
+        """
+
+
+def load(settings: Settings) -> Iterator[Tuple[str, Provider[object]]]:
+    """
+    Load the context plugins as requested in settings.
+    """
+    loader = Loader()
+
+    for name in settings.context:
+        class_ = loader.load(Provider, name)
+        plugin_settings = settings.for_plugin(name)
+        yield (name, class_(plugin_settings))

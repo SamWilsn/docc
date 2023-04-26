@@ -159,6 +159,23 @@ class Settings:
         return PluginSettings(self, settings)
 
     @property
+    def context(self) -> Sequence[str]:
+        """
+        Retrieve a list of enabled context plugins.
+        """
+        try:
+            context = self._settings["context"]
+        except KeyError:
+            context = []
+
+        assert isinstance(context, list)
+
+        for item in context:
+            assert isinstance(item, str)
+
+        return context
+
+    @property
     def discovery(self) -> Sequence[str]:
         """
         Retrieve a list of enabled discovery plugins.
