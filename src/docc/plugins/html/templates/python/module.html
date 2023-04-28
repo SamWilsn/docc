@@ -14,25 +14,27 @@
  # You should have received a copy of the GNU General Public License
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
-<section class="module">
-    <div class="members">
-        {% if node.name %}
-        <h2>{{ node.name|html }}</h2>
-        {% endif %}
+<section class="module row reverse">
+    <div class="members col">
+        <div class="width-limiter">
+            {% if node.name %}
+            <h2>{{ node.name|html }}</h2>
+            {% endif %}
 
-        {% if node.docstring %}
-        <div class="docstring">
-            {{ node.docstring|html }}
+            {% if node.docstring %}
+            <div class="docstring">
+                {{ node.docstring|html }}
+            </div>
+            {% endif %}
+
+
+            {% for member in node.members %}
+            {{ member|html }}
+            {% endfor %}
         </div>
-        {% endif %}
-
-
-        {% for member in node.members %}
-        {{ member|html }}
-        {% endfor %}
     </div>
 
-    <nav class="toc">
+    <nav class="toc col-12 col-3-md col-2-lg">
         <h3>Members</h3>
         <ul>
             {% with attributes = node|find("docc.languages.python:Attribute") %}
