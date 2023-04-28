@@ -2,7 +2,9 @@ window.initialize_search = function(search_path, search_base) {
     "use strict";
 
     window.addEventListener("DOMContentLoaded", () => {
+        const searchContainer = document.getElementById("search-results-container");
         const searchElement = document.getElementById("search-results");
+        const mainElement = document.getElementById("main-content");
 
         const tag = document.createElement("script");
         tag.async = true;
@@ -41,12 +43,16 @@ window.initialize_search = function(search_path, search_base) {
             delete e.target.dataset.timeoutId;
             if (!e.target.value) {
                 searchElement.replaceChildren();
+                mainElement.style.display = "initial";
+                searchContainer.style.display = "none";
                 return;
             }
 
             const searcher = await searcherPromise;
             const results = searcher.search(e.target.value);
 
+            mainElement.style.display = "none";
+            searchContainer.style.display = "initial";
             searchElement.replaceChildren(...results.map((r) => {
                 const href = new URL(
                     r.item.source.path + ".html",

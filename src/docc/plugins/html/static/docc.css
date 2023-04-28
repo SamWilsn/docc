@@ -161,13 +161,19 @@ details[open] > summary::after {
     padding-left: 1em;
 }
 
+#search-results-container {
+    display: none;
+}
+
 .search-bar {
     flex: 1;
     max-width: 960px;
+    margin: 1em 0;
 }
 
 .search-path {
     color: var(--color-grey);
+    font-family: var(--font-family-mono);
 }
 
 #search-results > li:not(:last-child) {
