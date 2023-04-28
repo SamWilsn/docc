@@ -16,6 +16,13 @@
 -#}
 <section class="class">
     <h3>{{ node.name|html }}</h3>
+
+    {% if node.docstring %}
+    <div class="docstring">
+        {{ node.docstring|html }}
+    </div>
+    {% endif %}
+
     {% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
     <pre class="code-like"><span class="hi-class">class</span> <span class="hi-name">{{ node.name|html }}</span>{%- if node.bases -%}
     (

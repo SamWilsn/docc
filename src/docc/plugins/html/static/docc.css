@@ -148,6 +148,11 @@ details[open] > summary::after {
     display: block;
 }
 
+/* Markdown */
+.markdown pre {
+    margin-bottom: 16px;
+}
+
 /* Search */
 #search {
     display: flex;
