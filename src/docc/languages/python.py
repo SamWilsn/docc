@@ -18,10 +18,13 @@ Python language support for docc.
 """
 
 import dataclasses
+import typing
 from dataclasses import dataclass, fields
 from typing import Iterable, Literal, Optional, Sequence, Union
 
-from ..document import BlankNode, Node
+from docc.plugins.search import Content, Searchable
+
+from ..document import BlankNode, Node, Visit, Visitor
 
 
 class PythonNode(Node):
@@ -80,7 +83,7 @@ class PythonNode(Node):
 
 
 @dataclass(repr=False)
-class Module(PythonNode):
+class Module(PythonNode, Searchable):
     """
     A Python module.
     """
@@ -89,9 +92,18 @@ class Module(PythonNode):
     docstring: Node = dataclasses.field(default_factory=BlankNode)
     members: Sequence[Node] = dataclasses.field(default_factory=list)
 
+    def to_search(self) -> Content:
+        """
+        Extract the searchable fields from this node.
+        """
+        return {
+            "type": "module",
+            "name": _NameVisitor.collect(self.name),
+        }
+
 
 @dataclass(repr=False)
-class Class(PythonNode):
+class Class(PythonNode, Searchable):
     """
     A class declaration.
     """
@@ -103,9 +115,18 @@ class Class(PythonNode):
     docstring: Node = dataclasses.field(default_factory=BlankNode)
     members: Sequence[Node] = dataclasses.field(default_factory=list)
 
+    def to_search(self) -> Content:
+        """
+        Extract the searchable fields from this node.
+        """
+        return {
+            "type": "class",
+            "name": _NameVisitor.collect(self.name),
+        }
+
 
 @dataclass(repr=False)
-class Function(PythonNode):
+class Function(PythonNode, Searchable):
     """
     A function definition.
     """
@@ -117,6 +138,15 @@ class Function(PythonNode):
     return_type: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
     body: Node = dataclasses.field(default_factory=BlankNode)
+
+    def to_search(self) -> Content:
+        """
+        Extract the searchable fields from this node.
+        """
+        return {
+            "type": "function",
+            "name": _NameVisitor.collect(self.name),
+        }
 
 
 @dataclass(repr=False)
@@ -160,7 +190,7 @@ class Parameter(PythonNode):
 
 
 @dataclass(repr=False)
-class Attribute(PythonNode):
+class Attribute(PythonNode, Searchable):
     """
     An assignment.
     """
@@ -168,6 +198,15 @@ class Attribute(PythonNode):
     names: Sequence[Node] = dataclasses.field(default_factory=list)
     body: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
+
+    def to_search(self) -> Content:
+        """
+        Extract the searchable fields from this node.
+        """
+        return {
+            "type": "attribute",
+            "name": _NameVisitor.collect(self.names),
+        }
 
 
 @dataclass
@@ -216,7 +255,7 @@ class Access(PythonNode):
 
 
 @dataclass
-class Docstring(Node):
+class Docstring(Node, Searchable):
     """
     Node representing a documentation string.
     """
@@ -235,3 +274,37 @@ class Docstring(Node):
         Replace the old node with the given new node.
         """
         raise TypeError()
+
+    def to_search(self) -> Content:
+        """
+        Extract the searchable fields from this node.
+        """
+        return self.text
+
+
+class _NameVisitor(Visitor):
+    names: typing.List[str]
+
+    @staticmethod
+    def collect(nodes: Union[Node, Sequence[Node]]) -> typing.List[str]:
+        if isinstance(nodes, Node):
+            nodes = [nodes]
+
+        visitor = _NameVisitor()
+
+        for node in nodes:
+            node.visit(visitor)
+
+        return visitor.names
+
+    def __init__(self) -> None:
+        self.names = []
+
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, Name):
+            self.names.append(node.name)
+            return Visit.SkipChildren
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass

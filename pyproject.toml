@@ -13,15 +13,18 @@ line-length = 79
 [tool.docc]
 context = [
     "docc.references.context",
+    "docc.search.context",
 ]
 
 discovery = [
+    "docc.search.discover",
     "docc.html.discover",
     "docc.cst.discover",
     "docc.listing.discover",
 ]
 
 build = [
+    "docc.search.build",
     "docc.cst.build",
     "docc.listing.build",
     "docc.resources.build",
@@ -31,6 +34,7 @@ transform = [
     "docc.cst.transform",
     "docc.mistletoe.transform",
     "docc.references.index",
+    "docc.search.transform",
     "docc.html",
 ]
 

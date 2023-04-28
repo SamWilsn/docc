@@ -1,3 +1,7 @@
 [submodule "vendor/chota"]
 	path = src/docc/plugins/html/static/chota
 	url = https://github.com/jenil/chota.git
+[submodule "src/docc/plugins/html/static/fuse"]
+	path = src/docc/plugins/html/static/fuse
+	url = https://github.com/krisk/Fuse.git
+	branch = master

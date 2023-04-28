@@ -57,7 +57,8 @@ from docc.languages import python, verbatim
 from docc.plugins import references
 from docc.plugins.loader import PluginError
 from docc.plugins.references import Index, ReferenceError
-from docc.plugins.resources import ResourceNode, ResourceSource
+from docc.plugins.resources import ResourceSource
+from docc.plugins.search import Search
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
 from docc.transform import Transform
@@ -95,6 +96,16 @@ class HTMLDiscover(Discover):
             "docc.plugins.html",
             PurePath("static") / "docc.css",
             PurePath("static") / "docc",
+        )
+        yield ResourceSource.with_path(
+            "docc.plugins.html",
+            PurePath("static") / "fuse" / "dist" / "fuse.min.js",
+            PurePath("static") / "fuse",
+        )
+        yield ResourceSource.with_path(
+            "docc.plugins.html",
+            PurePath("static") / "search.js",
+            PurePath("static") / "search",
         )
 
 
@@ -238,9 +249,19 @@ class HTMLRoot(OutputNode):
         template = env.get_template("base.html")
         body = rendered.getvalue()
         static_path = _static_path_from(context)
+
+        search_path = None
+        search_base = None
+        if Search in context:
+            search_path = _search_path_from(context)
+            search_base = _project_path_from(context)
+
         destination.write(
             template.render(
-                body=markupsafe.Markup(body), static_path=static_path
+                body=markupsafe.Markup(body),
+                static_path=static_path,
+                search_path=search_path,
+                search_base=search_base,
             )
         )
 
@@ -382,7 +403,7 @@ class HTML(Transform):
         Apply the transformation to the given document.
         """
         document = context[Document]
-        if isinstance(document.root, ResourceNode):
+        if isinstance(document.root, OutputNode):
             return None
 
         visitor = HTMLVisitor(context)
@@ -584,6 +605,24 @@ def _html_filter(
     rendered = "".join(children)
     eval_context = context.eval_ctx
     return markupsafe.Markup(rendered) if eval_context.autoescape else rendered
+
+
+def _project_path_from(context: Context) -> str:
+    return pathname2url(
+        str(
+            _make_relative(context[Source].output_path, PurePath("."))
+            or PurePath()
+        )
+    )
+
+
+def _search_path_from(context: Context) -> str:
+    return pathname2url(
+        str(
+            _make_relative(context[Source].output_path, PurePath("search.js"))
+            or PurePath()
+        )
+    )
 
 
 def _static_path_from(context: Context) -> str:

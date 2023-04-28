@@ -37,12 +37,12 @@ from typing_extensions import TypeAlias
 from docc.context import Context
 from docc.document import Document, Node, Visit, Visitor
 from docc.languages import python
-from docc.plugins import html
+from docc.plugins import html, search
 from docc.settings import PluginSettings
 from docc.transform import Transform
 
 
-class MarkdownNode(Node):
+class MarkdownNode(Node, search.Searchable):
     """
     Representation of a markdown node.
     """
@@ -73,6 +73,19 @@ class MarkdownNode(Node):
         Replace the old node with the given new node.
         """
         raise NotImplementedError()
+
+    def to_search(self) -> search.Content:
+        """
+        Extract the text from this node to put in the search index.
+        """
+        return " ".join(_SearchVisitor.collect(self))
+
+    def search_children(self) -> bool:
+        """
+        `True` if the children of this node should be searched, `False`
+        otherwise.
+        """
+        return False
 
 
 class DocstringTransform(Transform):
@@ -470,3 +483,36 @@ def render_html(
     return _RENDERERS[node.token.__class__.__name__](
         context[Document], parent, node
     )
+
+
+class _SearchVisitor(Visitor):
+    texts: List[str]
+
+    @staticmethod
+    def collect(nodes: Union[Node, Sequence[Node]]) -> List[str]:
+        if isinstance(nodes, Node):
+            nodes = [nodes]
+
+        visitor = _SearchVisitor()
+
+        for node in nodes:
+            node.visit(visitor)
+
+        return visitor.texts
+
+    def __init__(self) -> None:
+        self.texts = []
+
+    def enter(self, node: Node) -> Visit:
+        # TODO: Doesn't consider non-markdown nodes or HTML correctly.
+        if not isinstance(node, MarkdownNode):
+            return Visit.TraverseChildren
+
+        token = node.token
+        if isinstance(token, spans.RawText):
+            self.texts.append(token.content)
+            return Visit.SkipChildren
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass

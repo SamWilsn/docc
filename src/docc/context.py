@@ -48,6 +48,12 @@ class Context:
 
         self._items = items
 
+    def __contains__(self, class_: Type[Q]) -> bool:
+        """
+        `True` if the Context contains `class_`, `False` otherwise.
+        """
+        return class_ in self._items
+
     def __getitem__(self, class_: Type[Q]) -> Q:
         """
         Given a type, return an instance of that type if one has been stored in
