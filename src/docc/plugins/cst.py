@@ -181,7 +181,7 @@ class PythonBuilder(Builder):
                 if source.relative_path is None:
                     continue
                 abs_path = self.settings.resolve_path(source.relative_path)
-                paths.add(str(abs_path.relative_to(root)))
+                paths.add(str(abs_path))
 
             repo_manager = cst.metadata.FullRepoManager(
                 repo_root_dir=str(root),
@@ -192,11 +192,10 @@ class PythonBuilder(Builder):
             for source in sources:
                 assert source.relative_path
                 abs_path = self.settings.resolve_path(source.relative_path)
-                relative_path = abs_path.relative_to(root)
 
                 visitor = _CstVisitor(all_modules, source)
                 repo_manager.get_metadata_wrapper_for_path(
-                    str(relative_path)
+                    str(abs_path)
                 ).visit(visitor)
                 assert visitor.root is not None
 

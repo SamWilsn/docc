@@ -18,15 +18,12 @@ Utilities for search.
 """
 
 import json
-import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from io import TextIOBase
 from pathlib import PurePath
 from typing import (
-    Any,
-    Callable,
     DefaultDict,
     Dict,
     Iterator,

@@ -38,6 +38,7 @@ modulefinder
 param
 params
 pathname2url
+perf
 Pos
 ptag
 renderer
