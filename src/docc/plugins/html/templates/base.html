@@ -21,9 +21,10 @@
         <link href="{{ static_path }}/chota.min.css" rel="stylesheet">
         <link href="{{ static_path }}/docc.css" rel="stylesheet">
         {% if search_path %}
-        <script src="{{ static_path }}/fuse.min.js"></script>
-        <script src="{{ static_path }}/search.js"></script>
-        <script>initialize_search("{{ search_path }}", "{{ search_base }}")</script>
+        <link id="search-path" rel="preload" as="script" href="{{ search_path }}">
+        <meta name="docc:search" value="{{ search_base }}">
+        <script defer src="{{ static_path }}/fuse.min.js"></script>
+        <script defer src="{{ static_path }}/search.js"></script>
         {% endif %}
     </head>
     <body>

@@ -1,14 +1,16 @@
-window.initialize_search = function(search_path, search_base) {
+(function() {
     "use strict";
 
-    window.addEventListener("DOMContentLoaded", () => {
+    const onLoad = () => {
+        const searchBase = document.querySelector("meta[name='docc:search']");
+        const searchPath = document.getElementById("search-path");
         const searchContainer = document.getElementById("search-results-container");
         const searchElement = document.getElementById("search-results");
         const mainElement = document.getElementById("main-content");
 
         const tag = document.createElement("script");
         tag.async = true;
-        tag.src = search_path;
+        tag.src = searchPath.href;
 
         const searcherPromise = new Promise((resolve, reject) => {
             const onLoad = () => {
@@ -56,7 +58,7 @@ window.initialize_search = function(search_path, search_base) {
             searchElement.replaceChildren(...results.map((r) => {
                 const href = new URL(
                     r.item.source.path + ".html",
-                    new URL(search_base, window.location)
+                    new URL(searchBase.attributes.value, window.location)
                 );
 
                 if (r.item.source.identifier) {
@@ -100,5 +102,11 @@ window.initialize_search = function(search_path, search_base) {
         for (const bar of bars) {
             bar.addEventListener("input", onInput);
         }
-    });
-};
+    };
+
+    if ("complete" === document.readyState) {
+        onLoad();
+    } else {
+        window.addEventListener("DOMContentLoaded", onLoad);
+    }
+})();
