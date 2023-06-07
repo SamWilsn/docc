@@ -41,6 +41,17 @@
 
         const bars = document.querySelectorAll(".search-bar input[type='search']");
 
+        const clearSearch = () => {
+            for (const bar of bars) {
+                bar.value = "";
+                const event = new Event('input', {
+                    bubbles: true,
+                    cancelable: true,
+                });
+                bar.dispatchEvent(event);
+            }
+        };
+
         const onTimeout = async (e) => {
             delete e.target.dataset.timeoutId;
             if (!e.target.value) {
@@ -58,7 +69,7 @@
             searchElement.replaceChildren(...results.map((r) => {
                 const href = new URL(
                     r.item.source.path + ".html",
-                    new URL(searchBase.attributes.value, window.location)
+                    new URL(searchBase.getAttribute("value"), window.location)
                 );
 
                 if (r.item.source.identifier) {
@@ -69,6 +80,7 @@
                 const anchor = document.createElement("a");
                 anchor.innerText = r.item.content.name;
                 anchor.href = href;
+                anchor.addEventListener("click", clearSearch);
 
                 const path = document.createElement("span");
                 path.classList.add("search-path");
