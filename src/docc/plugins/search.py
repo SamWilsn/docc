@@ -200,9 +200,7 @@ class SearchNode(BlankNode, OutputNode):
             else:
                 assert_never(location.__class__)
 
-            relative_path = source.relative_path
-            if relative_path is not None:
-                output_source["path"] = str(relative_path)
+            output_source["path"] = str(source.output_path)
 
             output.append(
                 {

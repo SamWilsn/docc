@@ -391,14 +391,47 @@ class PythonTransform(Transform):
             _AnnotationReferenceTransformVisitor(self.excluded_references)
         )
 
-        if isinstance(document.root, CstNode):
-            visitor = _TransformVisitor(context)
-            document.root.visit(visitor)
-            assert visitor.root is not None
-            document.root = visitor.root
+        visitor = _ReplaceVisitor(context)
+        document.root.visit(visitor)
 
         document.root.visit(_AnnotationTransformVisitor())
         document.root.visit(_NameTransformVisitor())
+
+
+class _ReplaceVisitor(Visitor):
+    context: Final[Context]
+    parents: Final[List[Node]]
+
+    def __init__(self, context: Context) -> None:
+        super().__init__()
+        self.parents = []
+        self.context = context
+
+    def _replace_child(self, old: Node, new: Node) -> None:
+        if self.parents:
+            self.parents[-1].replace_child(old, new)
+        else:
+            document = self.context[Document]
+            assert document.root == old
+            document.root = new
+
+    def enter(self, node: Node) -> Visit:
+        if not isinstance(node, CstNode):
+            self.parents.append(node)
+            return Visit.TraverseChildren
+
+        transformer = _TransformVisitor(self.context)
+
+        node.visit(transformer)
+        assert transformer.root is not None
+
+        self._replace_child(node, transformer.root)
+        return Visit.SkipChildren
+
+    def exit(self, node: Node) -> None:
+        if not isinstance(node, CstNode):
+            popped = self.parents.pop()
+            assert popped == node
 
 
 @dataclass
@@ -468,7 +501,7 @@ class _TransformVisitor(Visitor):
 
         class_def.name = node.find_child(cst_node.name)
 
-        source = self.context[Source]
+        source = node.source
         if isinstance(source, TextSource):
             decorators = []
             for cst_decorator in cst_node.decorators:
@@ -543,7 +576,7 @@ class _TransformVisitor(Visitor):
         if cst_node.returns is not None:
             function_def.return_type = node.find_child(cst_node.returns)
 
-        source = self.context[Source]
+        source = node.source
         if isinstance(source, TextSource):
             body = node.find_child(cst_node.body)
             function_def.body = _VerbatimTransform.apply(source, body)
@@ -674,7 +707,7 @@ class _TransformVisitor(Visitor):
         for target in targets:
             names.append(deepcopy(target))
 
-        source = self.context[Source]
+        source = node.source
         if isinstance(source, TextSource):
             attribute.body = _VerbatimTransform.apply(source, node)
 

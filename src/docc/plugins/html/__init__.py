@@ -916,10 +916,6 @@ class _VerbatimVisitor(verbatim.VerbatimVisitor):
 
             popped_output = self.output_stack.pop()
             assert isinstance(popped_output, HTMLTag)
-            assert (
-                popped_output.tag_name == "a"
-            ), f"expected a, got `{popped_output.tag_name}`"
-
         else:
             return super().exit_node(node)
 
@@ -1057,9 +1053,7 @@ def _render_reference(
     try:
         definitions = list(context[Index].lookup(reference.identifier))
     except ReferenceError as error:
-        raise ReferenceError(
-            reference.identifier, source=context[Source]
-        ) from error
+        raise ReferenceError(reference.identifier, context=context) from error
 
     if not definitions:
         raise NotImplementedError(

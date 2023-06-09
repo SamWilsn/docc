@@ -20,7 +20,14 @@
                 const options = {
                     keys: [
                         "content.name",
-                        "content.text"
+                        {
+                            name: "content.text",
+                            weight: 0.75
+                        },
+                        {
+                            name: "source.path",
+                            weight: 0.5
+                        }
                     ]
                 };
 

@@ -46,17 +46,28 @@ class ReferenceError(Exception):
     """
 
     identifier: str
+    context: Optional[Context]
 
     def __init__(
-        self, identifier: str, source: Optional[Source] = None
+        self, identifier: str, context: Optional[Context] = None
     ) -> None:
         message = f"undefined identifier: `{identifier}`"
+        source = None
+        if context:
+            try:
+                source = context[Source]
+            except KeyError:
+                pass
 
-        if source and source.relative_path:
-            message = f"in `{source.relative_path}`, {message}"
+        if source:
+            if source.relative_path:
+                message = f"in `{source.relative_path}`, {message}"
+            else:
+                message = f"writing to `{source.output_path}`, {message}"
 
         super().__init__(message)
         self.identifier = identifier
+        self.context = context
 
 
 class Index:
