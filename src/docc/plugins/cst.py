@@ -45,7 +45,7 @@ from libcst.metadata import ExpressionContext
 from docc.build import Builder
 from docc.context import Context
 from docc.discover import Discover, T
-from docc.document import Document, Node, Visit, Visitor
+from docc.document import BlankNode, Document, Node, Visit, Visitor
 from docc.languages import python
 from docc.languages.verbatim import Fragment, Pos, Stanza, Verbatim
 from docc.plugins.references import Definition, Reference
@@ -56,6 +56,8 @@ from docc.transform import Transform
 WHITESPACE: Tuple[Type[cst.CSTNode], ...] = (
     cst.TrailingWhitespace,
     cst.EmptyLine,
+    cst.SimpleWhitespace,
+    cst.ParenthesizedWhitespace,
 )
 """
 libcst nodes that count as whitespace and should be ignored.
@@ -1093,16 +1095,19 @@ class _VerbatimTransform(Visitor):
         if not isinstance(node, CstNode):
             return
 
-        name = dasherize(underscore(node.cst_node.__class__.__name__))
+        if isinstance(node.cst_node, WHITESPACE):
+            new = BlankNode()
+        else:
+            name = dasherize(underscore(node.cst_node.__class__.__name__))
 
-        new = Fragment(
-            start=node.start,
-            end=node.end,
-            highlights=[name],
-        )
+            new = Fragment(
+                start=node.start,
+                end=node.end,
+                highlights=[name],
+            )
 
-        for child in node.children:
-            new.append(child)
+            for child in node.children:
+                new.append(child)
 
         if self.stack:
             self.stack[-1].replace_child(node, new)

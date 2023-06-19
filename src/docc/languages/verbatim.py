@@ -202,22 +202,24 @@ class VerbatimVisitor(Visitor):
         """
         Visit a non-verbatim Node.
         """
-        logging.warning(
-            "`%s` entered non-verbatim node `%s`",
-            self.__class__.__name__,
-            node.__class__.__name__,
-        )
+        if node:
+            logging.warning(
+                "`%s` entered non-verbatim node `%s`",
+                self.__class__.__name__,
+                node.__class__.__name__,
+            )
         return Visit.TraverseChildren
 
     def exit_node(self, node: Node) -> None:
         """
         Leave a non-verbatim Node.
         """
-        logging.warning(
-            "`%s` exited non-verbatim node `%s`",
-            self.__class__.__name__,
-            node.__class__.__name__,
-        )
+        if node:
+            logging.warning(
+                "`%s` exited non-verbatim node `%s`",
+                self.__class__.__name__,
+                node.__class__.__name__,
+            )
 
     #
     # Implementation Details:
