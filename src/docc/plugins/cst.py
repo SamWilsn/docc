@@ -45,7 +45,7 @@ from libcst.metadata import ExpressionContext
 from docc.build import Builder
 from docc.context import Context
 from docc.discover import Discover, T
-from docc.document import BlankNode, Document, Node, Visit, Visitor
+from docc.document import BlankNode, Document, ListNode, Node, Visit, Visitor
 from docc.languages import python
 from docc.languages.verbatim import Fragment, Pos, Stanza, Verbatim
 from docc.plugins.references import Definition, Reference
@@ -505,7 +505,8 @@ class _TransformVisitor(Visitor):
 
         source = node.source
         if isinstance(source, TextSource):
-            decorators = []
+            assert isinstance(class_def.decorators, ListNode)
+            decorators = class_def.decorators.children
             for cst_decorator in cst_node.decorators:
                 decorator = node.find_child(cst_decorator)
 
@@ -514,8 +515,6 @@ class _TransformVisitor(Visitor):
                     decorator = decorator.find_child(cst_decorator.decorator)
 
                 decorators.append(_VerbatimTransform.apply(source, decorator))
-
-            class_def.decorators = decorators
 
         maybe_definition: Node = class_def
         for name in node.names:
@@ -526,8 +525,8 @@ class _TransformVisitor(Visitor):
         if 1 < len(self.new_stack):
             parent = self.new_stack[-2]
             members = getattr(parent, "members", None)
-            if isinstance(members, list):
-                members.append(maybe_definition)
+            if isinstance(members, ListNode):
+                members.children.append(maybe_definition)
 
         body = node.find_child(cst_node.body)
         assert isinstance(body, CstNode)
@@ -565,7 +564,7 @@ class _TransformVisitor(Visitor):
         parameters = []
         function_def = python.Function(
             asynchronous=cst_node.asynchronous is not None,
-            parameters=parameters,
+            parameters=ListNode(parameters),
         )
         self.push_new(function_def)
 
@@ -583,7 +582,8 @@ class _TransformVisitor(Visitor):
             body = node.find_child(cst_node.body)
             function_def.body = _VerbatimTransform.apply(source, body)
 
-            decorators = []
+            assert isinstance(function_def.decorators, ListNode)
+            decorators = function_def.decorators.children
             for cst_decorator in cst_node.decorators:
                 decorator = node.find_child(cst_decorator)
 
@@ -592,8 +592,6 @@ class _TransformVisitor(Visitor):
                     decorator = decorator.find_child(cst_decorator.decorator)
 
                 decorators.append(_VerbatimTransform.apply(source, decorator))
-
-            function_def.decorators = decorators
 
         maybe_definition: Node = function_def
         for name in node.names:
@@ -604,8 +602,8 @@ class _TransformVisitor(Visitor):
         if 1 < len(self.new_stack):
             parent = self.new_stack[-2]
             members = getattr(parent, "members", None)
-            if isinstance(members, list):
-                members.append(maybe_definition)
+            if isinstance(members, ListNode):
+                members.children.append(maybe_definition)
 
         for param in node.find_child(cst_node.params).children:
             if not isinstance(param, CstNode):
@@ -696,11 +694,11 @@ class _TransformVisitor(Visitor):
 
         parent = self.new_stack[-1]
         members = getattr(parent, "members", None)
-        if not isinstance(members, list):
+        if not isinstance(members, ListNode):
             return Visit.SkipChildren
 
         names: List[Node] = []
-        attribute = python.Attribute(names=names)
+        attribute = python.Attribute(names=ListNode(names))
 
         docstring = self._assign_docstring()
         if docstring:
@@ -723,7 +721,7 @@ class _TransformVisitor(Visitor):
                     identifier=name, child=maybe_definition
                 )
 
-        members.append(maybe_definition)
+        members.children.append(maybe_definition)
         return Visit.SkipChildren
 
     def enter_ann_assign(
@@ -927,7 +925,7 @@ class _TypeVisitor(Visitor):
             self.type.name = python.Name(names[0], names[0])
         elif isinstance(cst_node, cst.Subscript):
             arguments = []
-            generics = python.List(elements=arguments)
+            generics = python.List(elements=ListNode(arguments))
             self.type.generics = generics
             type_ = python.Type()
             value = node.find_child(cst_node.value)
@@ -963,9 +961,9 @@ class _TypeVisitor(Visitor):
             #       Callable isn't a type of its own.
 
             if isinstance(cst_node, cst.List):
-                self.type.generics = python.List(elements=elements)
+                self.type.generics = python.List(elements=ListNode(elements))
             elif isinstance(cst_node, cst.Tuple):
-                self.type.generics = python.Tuple(elements=elements)
+                self.type.generics = python.Tuple(elements=ListNode(elements))
             else:
                 raise NotImplementedError()
 

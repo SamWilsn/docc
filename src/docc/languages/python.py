@@ -24,7 +24,7 @@ from typing import Iterable, Literal, Optional, Sequence, Union
 
 from docc.plugins.search import Content, Searchable
 
-from ..document import BlankNode, Node, Visit, Visitor
+from ..document import BlankNode, ListNode, Node, Visit, Visitor
 
 
 class PythonNode(Node):
@@ -41,16 +41,9 @@ class PythonNode(Node):
             value = getattr(self, field.name)
 
             if field.type == Node:
-                # Value is a single child.
-                if not isinstance(value, Node):
+                if not isinstance(value, field.type):
                     raise TypeError("child not Node")
                 yield value
-            elif field.type == Sequence[Node]:
-                # Value is a list of children.
-                for item in value:
-                    if not isinstance(item, Node):
-                        raise TypeError("child not Node")
-                    yield item
             else:
                 # Not a child, so just ignore it.
                 pass
@@ -65,15 +58,6 @@ class PythonNode(Node):
                 assert isinstance(new, field.type)
                 setattr(self, field.name, new)
                 continue
-
-            try:
-                iterator = enumerate(value)
-            except TypeError:
-                continue
-
-            for index, item in iterator:
-                if old == item:
-                    value[index] = new
 
     def __repr__(self) -> str:
         """
@@ -90,7 +74,7 @@ class Module(PythonNode, Searchable):
 
     name: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
-    members: Sequence[Node] = dataclasses.field(default_factory=list)
+    members: Node = dataclasses.field(default_factory=ListNode)
 
     def to_search(self) -> Content:
         """
@@ -108,12 +92,12 @@ class Class(PythonNode, Searchable):
     A class declaration.
     """
 
-    decorators: Sequence[Node] = dataclasses.field(default_factory=list)
+    decorators: Node = dataclasses.field(default_factory=ListNode)
     name: Node = dataclasses.field(default_factory=BlankNode)
-    bases: Sequence[Node] = dataclasses.field(default_factory=list)
+    bases: Node = dataclasses.field(default_factory=ListNode)
     metaclass: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
-    members: Sequence[Node] = dataclasses.field(default_factory=list)
+    members: Node = dataclasses.field(default_factory=ListNode)
 
     def to_search(self) -> Content:
         """
@@ -132,9 +116,9 @@ class Function(PythonNode, Searchable):
     """
 
     asynchronous: bool
-    decorators: Sequence[Node] = dataclasses.field(default_factory=list)
+    decorators: Node = dataclasses.field(default_factory=ListNode)
     name: Node = dataclasses.field(default_factory=BlankNode)
-    parameters: Sequence[Node] = dataclasses.field(default_factory=list)
+    parameters: Node = dataclasses.field(default_factory=ListNode)
     return_type: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
     body: Node = dataclasses.field(default_factory=BlankNode)
@@ -165,7 +149,7 @@ class List(PythonNode):
     Square brackets wrapping a list of elements, usually separated by commas.
     """
 
-    elements: Sequence[Node] = dataclasses.field(default_factory=list)
+    elements: Node = dataclasses.field(default_factory=ListNode)
 
 
 @dataclass(repr=False)
@@ -174,7 +158,7 @@ class Tuple(PythonNode):
     Parentheses wrapping a list of elements, usually separated by commas.
     """
 
-    elements: Sequence[Node] = dataclasses.field(default_factory=list)
+    elements: Node = dataclasses.field(default_factory=ListNode)
 
 
 @dataclass(repr=False)
@@ -195,7 +179,7 @@ class Attribute(PythonNode, Searchable):
     An assignment.
     """
 
-    names: Sequence[Node] = dataclasses.field(default_factory=list)
+    names: Node = dataclasses.field(default_factory=ListNode)
     body: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
 

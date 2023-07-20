@@ -93,6 +93,52 @@ class Node(ABC):
         return io.getvalue()
 
 
+class ListNode(Node):
+    """
+    A node containing a list of children.
+    """
+
+    __slots__ = ("children",)
+
+    children: List[Node]
+
+    def __init__(self, children: Optional[List[Node]] = None) -> None:
+        if children is None:
+            self.children = []
+        else:
+            self.children = children
+
+    def replace_child(self, old: Node, new: Node) -> None:
+        """
+        Replace the old node with the given new node.
+        """
+        self.children = [new if x == old else x for x in self.children]
+
+    def __repr__(self) -> str:
+        """
+        Textual representation of this instance.
+        """
+        return "<list>"
+
+    def __bool__(self) -> bool:
+        """
+        Cast this instance to a bool.
+        """
+        return len(self.children) > 0
+
+    def __iter__(self) -> Iterable[Node]:
+        """
+        Return an iterator for the children of this node.
+        """
+        return iter(self.children)
+
+    def __len__(self) -> int:
+        """
+        The number of children of this node.
+        """
+        return len(self.children)
+
+
 class BlankNode(Node):
     """
     A placeholder node with no conent and no children.

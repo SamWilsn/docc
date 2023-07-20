@@ -48,7 +48,6 @@ from jinja2 import pass_context, select_autoescape
 from jinja2.ext import Extension
 from jinja2.parser import Parser
 from jinja2.runtime import Context as JinjaContext
-from typing_extensions import TypeAlias
 
 from docc.context import Context
 from docc.discover import Discover, T
@@ -69,7 +68,7 @@ else:
     from importlib.metadata import EntryPoint, entry_points
 
 
-RenderResult: TypeAlias = Optional["HTMLTag"]
+RenderResult = Optional["HTMLTag"]
 
 
 class HTMLDiscover(Discover):

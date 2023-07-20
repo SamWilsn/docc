@@ -50,7 +50,7 @@ class MarkdownNode(Node, search.Searchable):
     __slots__ = ("token", "_children")
 
     token: Final[MarkdownToken]
-    _children: Optional[Sequence[Node]]
+    _children: Optional[List[Node]]
 
     def __init__(self, token: MarkdownToken) -> None:
         self.token = token
@@ -72,7 +72,7 @@ class MarkdownNode(Node, search.Searchable):
         """
         Replace the old node with the given new node.
         """
-        raise NotImplementedError()
+        self._children = [new if x == old else x for x in self.children]
 
     def to_search(self) -> search.Content:
         """
