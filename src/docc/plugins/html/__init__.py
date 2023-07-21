@@ -52,7 +52,7 @@ from jinja2.runtime import Context as JinjaContext
 from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
-from docc.languages import python, verbatim
+from docc.languages import verbatim
 from docc.plugins import references
 from docc.plugins.loader import PluginError
 from docc.plugins.references import Index, ReferenceError
@@ -633,15 +633,20 @@ def _static_path_from(context: Context) -> str:
     )
 
 
-def _render_template(
-    context: object, parent: object, template_name: str, node: Node
+def render_template(
+    package: str,
+    context: Context,
+    parent: Union[HTMLTag, HTMLRoot],
+    template_name: str,
+    node: Node,
 ) -> RenderResult:
-    assert isinstance(context, Context)
-    assert isinstance(parent, (HTMLTag, HTMLRoot))
+    """
+    Render a template as a child of the given parent.
+    """
     static_path = _static_path_from(context)
     env = Environment(
         extensions=[_ReferenceExtension],
-        loader=PackageLoader("docc.plugins.html"),
+        loader=PackageLoader(package),
         autoescape=select_autoescape(),
     )
     env.filters["html"] = _html_filter
@@ -656,141 +661,13 @@ def _render_template(
     return None
 
 
-def python_module(
-    context: object,
-    parent: object,
-    module: object,
+def _render_template(
+    context: object, parent: object, template_name: str, node: Node
 ) -> RenderResult:
-    """
-    Render a python Module as HTML.
-    """
-    assert isinstance(module, python.Module)
-    return _render_template(context, parent, "python/module.html", module)
-
-
-def python_class(
-    context: object,
-    parent: object,
-    class_: object,
-) -> RenderResult:
-    """
-    Render a python Class as HTML.
-    """
-    assert isinstance(class_, python.Class)
-    return _render_template(context, parent, "python/class.html", class_)
-
-
-def python_attribute(
-    context: object,
-    parent: object,
-    attribute: object,
-) -> RenderResult:
-    """
-    Render a python assignment as HTML.
-    """
-    assert isinstance(attribute, python.Attribute)
-    return _render_template(
-        context, parent, "python/attribute.html", attribute
-    )
-
-
-def python_function(
-    context: object,
-    parent: object,
-    function: object,
-) -> RenderResult:
-    """
-    Render a python Function as HTML.
-    """
-    assert isinstance(function, python.Function)
-    return _render_template(context, parent, "python/function.html", function)
-
-
-def python_access(
-    context: object,
-    parent: object,
-    access: object,
-) -> RenderResult:
-    """
-    Render a python Access as HTML.
-    """
-    assert isinstance(access, python.Access)
-    return _render_template(context, parent, "python/access.html", access)
-
-
-def python_name(
-    context: object,
-    parent: object,
-    name: object,
-) -> RenderResult:
-    """
-    Render a python Name as HTML.
-    """
-    assert isinstance(name, python.Name)
-    return _render_template(context, parent, "python/name.html", name)
-
-
-def python_type(
-    context: object,
-    parent: object,
-    type_: object,
-) -> RenderResult:
-    """
-    Render a python Type as HTML.
-    """
-    assert isinstance(type_, python.Type)
-    return _render_template(context, parent, "python/type.html", type_)
-
-
-def python_list(
-    context: object,
-    parent: object,
-    list_: object,
-) -> RenderResult:
-    """
-    Render a python List as HTML.
-    """
-    assert isinstance(list_, python.List)
-    return _render_template(context, parent, "python/list.html", list_)
-
-
-def python_tuple(
-    context: object,
-    parent: object,
-    tuple_: object,
-) -> RenderResult:
-    """
-    Render a python List as HTML.
-    """
-    assert isinstance(tuple_, python.Tuple)
-    return _render_template(context, parent, "python/tuple.html", tuple_)
-
-
-def python_docstring(
-    context: object,
-    parent: object,
-    docstring: object,
-) -> RenderResult:
-    """
-    Render a python Docstring as HTML.
-    """
-    assert isinstance(docstring, python.Docstring)
-    assert isinstance(parent, (HTMLRoot, HTMLTag))
-    parent.append(TextNode(docstring.text))
-    return None
-
-
-def python_parameter(
-    context: object,
-    parent: object,
-    parameter: object,
-) -> RenderResult:
-    """
-    Render a python Parameter as HTML.
-    """
-    assert isinstance(parameter, python.Parameter)
-    return _render_template(
-        context, parent, "python/parameter.html", parameter
+    assert isinstance(context, Context)
+    assert isinstance(parent, (HTMLTag, HTMLRoot))
+    return render_template(
+        "docc.plugins.html", context, parent, template_name, node
     )
 
 

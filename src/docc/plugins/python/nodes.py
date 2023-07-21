@@ -22,9 +22,8 @@ import typing
 from dataclasses import dataclass, fields
 from typing import Iterable, Literal, Optional, Sequence, Union
 
+from docc.document import BlankNode, ListNode, Node, Visit, Visitor
 from docc.plugins.search import Content, Searchable
-
-from ..document import BlankNode, ListNode, Node, Visit, Visitor
 
 
 class PythonNode(Node):

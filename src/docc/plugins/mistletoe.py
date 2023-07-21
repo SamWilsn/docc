@@ -36,8 +36,7 @@ from typing_extensions import TypeAlias
 
 from docc.context import Context
 from docc.document import Document, Node, Visit, Visitor
-from docc.languages import python
-from docc.plugins import html, search
+from docc.plugins import html, python, search
 from docc.settings import PluginSettings
 from docc.transform import Transform
 
@@ -62,11 +61,13 @@ class MarkdownNode(Node, search.Searchable):
         Child nodes belonging to this node.
         """
         current = self._children
-        if current is None:
-            children = getattr(self.token, "children", tuple())
-            current = [MarkdownNode(c) for c in children]
-            self._children = current
-        return current
+        if current is not None:
+            return current
+
+        children = getattr(self.token, "children", tuple())
+        replacement: List[Node] = [MarkdownNode(c) for c in children]
+        self._children = replacement
+        return replacement
 
     def replace_child(self, old: Node, new: Node) -> None:
         """

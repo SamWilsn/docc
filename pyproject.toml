@@ -19,26 +19,26 @@ context = [
 discovery = [
     "docc.search.discover",
     "docc.html.discover",
-    "docc.cst.discover",
+    "docc.python.discover",
     "docc.listing.discover",
 ]
 
 build = [
     "docc.search.build",
-    "docc.cst.build",
+    "docc.python.build",
     "docc.listing.build",
     "docc.resources.build",
 ]
 
 transform = [
-    "docc.cst.transform",
+    "docc.python.transform",
     "docc.mistletoe.transform",
     "docc.references.index",
     "docc.search.transform",
     "docc.html",
 ]
 
-[tool.docc.plugins."docc.cst.discover"]
+[tool.docc.plugins."docc.python.discover"]
 paths = [
     "src",
 ]

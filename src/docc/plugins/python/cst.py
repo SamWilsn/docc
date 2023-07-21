@@ -46,12 +46,13 @@ from docc.build import Builder
 from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import BlankNode, Document, ListNode, Node, Visit, Visitor
-from docc.languages import python
 from docc.languages.verbatim import Fragment, Pos, Stanza, Verbatim
 from docc.plugins.references import Definition, Reference
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
 from docc.transform import Transform
+
+from . import nodes
 
 WHITESPACE: Tuple[Type[cst.CSTNode], ...] = (
     cst.TrailingWhitespace,
@@ -464,12 +465,12 @@ class _TransformVisitor(Visitor):
 
     def enter_module(self, node: CstNode, cst_node: cst.Module) -> Visit:
         assert 0 == len(self.new_stack)
-        module = python.Module()
+        module = nodes.Module()
 
         names = sorted(node.names)
 
         if names:
-            module.name = python.Name(names[0], names[0])
+            module.name = nodes.Name(names[0], names[0])
 
         maybe_definition: Node = module
         for name in names:
@@ -482,7 +483,7 @@ class _TransformVisitor(Visitor):
 
         docstring = cst_node.get_docstring(True)
         if docstring is not None:
-            module.docstring = python.Docstring(docstring)
+            module.docstring = nodes.Docstring(docstring)
 
         return Visit.TraverseChildren
 
@@ -494,12 +495,12 @@ class _TransformVisitor(Visitor):
     def enter_class_def(self, node: CstNode, cst_node: cst.ClassDef) -> Visit:
         assert 0 < len(self.new_stack)
 
-        class_def = python.Class()
+        class_def = nodes.Class()
         self.push_new(class_def)
 
         docstring = cst_node.get_docstring(True)
         if docstring is not None:
-            class_def.docstring = python.Docstring(docstring)
+            class_def.docstring = nodes.Docstring(docstring)
 
         class_def.name = node.find_child(cst_node.name)
 
@@ -562,7 +563,7 @@ class _TransformVisitor(Visitor):
         assert 0 < len(self.new_stack)
 
         parameters = []
-        function_def = python.Function(
+        function_def = nodes.Function(
             asynchronous=cst_node.asynchronous is not None,
             parameters=ListNode(parameters),
         )
@@ -570,7 +571,7 @@ class _TransformVisitor(Visitor):
 
         docstring = cst_node.get_docstring(True)
         if docstring is not None:
-            function_def.docstring = python.Docstring(docstring)
+            function_def.docstring = nodes.Docstring(docstring)
 
         function_def.name = node.find_child(cst_node.name)
 
@@ -610,7 +611,7 @@ class _TransformVisitor(Visitor):
                 parameters.append(param)
                 continue
 
-            parameter = python.Parameter()
+            parameter = nodes.Parameter()
             parameters.append(parameter)
 
             cst_param = param.cst_node
@@ -630,9 +631,9 @@ class _TransformVisitor(Visitor):
                     # TODO: parameter default
                     logging.warning("parameter default values not implemented")
             elif isinstance(cst_param, cst.ParamSlash):
-                parameter.name = python.Name("/")
+                parameter.name = nodes.Name("/")
             elif isinstance(cst_param, cst.ParamStar):
-                parameter.name = python.Name("*")
+                parameter.name = nodes.Name("*")
             else:
                 raise NotImplementedError(f"parameter type `{param}`")
 
@@ -641,7 +642,7 @@ class _TransformVisitor(Visitor):
     def exit_function_def(self) -> None:
         self.new_stack.pop()
 
-    def _assign_docstring(self) -> Optional[python.Docstring]:
+    def _assign_docstring(self) -> Optional[nodes.Docstring]:
         parent_context = self.old_stack[-1]
         parent = parent_context.node
         if not isinstance(parent, CstNode):
@@ -678,7 +679,7 @@ class _TransformVisitor(Visitor):
         if not isinstance(cst_value, cst.SimpleString):
             return None
 
-        return python.Docstring(text=cst_value.evaluated_value)
+        return nodes.Docstring(text=cst_value.evaluated_value)
 
     def _enter_assignment(
         self,
@@ -698,7 +699,7 @@ class _TransformVisitor(Visitor):
             return Visit.SkipChildren
 
         names: List[Node] = []
-        attribute = python.Attribute(names=ListNode(names))
+        attribute = nodes.Attribute(names=ListNode(names))
 
         docstring = self._assign_docstring()
         if docstring:
@@ -898,9 +899,9 @@ class _AnnotationReferenceTransformVisitor(Visitor):
 
 class _TypeVisitor(Visitor):
     root: Final[Node]
-    type: Final[python.Type]
+    type: Final[nodes.Type]
 
-    def __init__(self, root: Node, type_: python.Type) -> None:
+    def __init__(self, root: Node, type_: nodes.Type) -> None:
         self.root = root
         self.type = type_
 
@@ -915,19 +916,19 @@ class _TypeVisitor(Visitor):
             self.type.name = self.root
         elif isinstance(cst_node, cst.Ellipsis):
             # TODO: check this.
-            self.type.name = python.Name(name="...")
+            self.type.name = nodes.Name(name="...")
         elif isinstance(cst_node, cst.Attribute):
             if not node.names:
                 raise NotImplementedError("attributes without full names")
             names = sorted(node.names)
             # TODO: While accurate, this doesn't match the exact text from the
             #       source file.
-            self.type.name = python.Name(names[0], names[0])
+            self.type.name = nodes.Name(names[0], names[0])
         elif isinstance(cst_node, cst.Subscript):
             arguments = []
-            generics = python.List(elements=ListNode(arguments))
+            generics = nodes.List(elements=ListNode(arguments))
             self.type.generics = generics
-            type_ = python.Type()
+            type_ = nodes.Type()
             value = node.find_child(cst_node.value)
             value.visit(_TypeVisitor(value, type_))
             self.type.name = type_
@@ -943,7 +944,7 @@ class _TypeVisitor(Visitor):
 
                 assert isinstance(element, CstNode)
                 index = element.find_child(cst_index)
-                generic = python.Type()
+                generic = nodes.Type()
 
                 cst_index_value = cst_index.value
                 assert cst_index.star is None
@@ -961,9 +962,9 @@ class _TypeVisitor(Visitor):
             #       Callable isn't a type of its own.
 
             if isinstance(cst_node, cst.List):
-                self.type.generics = python.List(elements=ListNode(elements))
+                self.type.generics = nodes.List(elements=ListNode(elements))
             elif isinstance(cst_node, cst.Tuple):
-                self.type.generics = python.Tuple(elements=ListNode(elements))
+                self.type.generics = nodes.Tuple(elements=ListNode(elements))
             else:
                 raise NotImplementedError()
 
@@ -977,7 +978,7 @@ class _TypeVisitor(Visitor):
                 assert isinstance(element, CstNode)
                 value = element.find_child(cst_value)
 
-                type_ = python.Type()
+                type_ = nodes.Type()
                 value.visit(_TypeVisitor(value, type_))
                 elements.append(type_)
         else:
@@ -1006,7 +1007,7 @@ class _AnnotationTransformVisitor(Visitor):
         if not isinstance(cst_node, cst.Annotation):
             return Visit.TraverseChildren
 
-        type_ = python.Type()
+        type_ = nodes.Type()
 
         self.stack[-2].replace_child(node, type_)
         self.stack[-1] = type_
@@ -1038,9 +1039,9 @@ class _NameTransformVisitor(Visitor):
                 except IndexError:
                     full_name = None
 
-                new_node = python.Name(cst_node.value, full_name)
+                new_node = nodes.Name(cst_node.value, full_name)
             elif isinstance(cst_node, cst.Attribute):
-                new_node = python.Access(
+                new_node = nodes.Access(
                     value=node.find_child(cst_node.value),
                     attribute=node.find_child(cst_node.attr),
                 )
