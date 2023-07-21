@@ -33,6 +33,7 @@ build = [
 transform = [
     "docc.python.transform",
     "docc.mistletoe.transform",
+    "docc.verbatim.transform",
     "docc.references.index",
     "docc.search.transform",
     "docc.html",

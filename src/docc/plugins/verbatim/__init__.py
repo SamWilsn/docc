@@ -20,11 +20,95 @@ highlighting support.
 
 import logging
 from abc import abstractmethod
-from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence
+from dataclasses import dataclass, field
+from typing import Iterable, List, Optional, Sequence, Final, Union, Tuple
 
-from docc.document import Node, Visit, Visitor
+from docc.context import Context
+from docc.document import Node, Visit, Visitor, BlankNode, Document
 from docc.source import TextSource
+from docc.transform import Transform
+from docc.plugins import references
+from docc.settings import PluginSettings
+
+
+@dataclass
+class Transcribed(Node):
+    _children: List[Node] = field(default_factory=list)
+
+    @property
+    def children(self) -> Iterable[Node]:
+        return self._children
+
+    def replace_child(self, old: Node, new: Node) -> None:
+        raise NotImplementedError()
+
+    def __repr__(self) -> str:
+        """
+        String representation of this node.
+        """
+        return "Transcribed(...)"
+
+
+@dataclass
+class Line(Node):
+    """
+    A grouping of nodes occupying the same line.
+    """
+
+    number: int
+    _children: List[Node] = field(default_factory=list)
+
+    @property
+    def children(self) -> Iterable[Node]:
+        return self._children
+
+    def replace_child(self, old: Node, new: Node) -> None:
+        raise NotImplementedError()
+
+    def __repr__(self) -> str:
+        """
+        String representation of this node.
+        """
+        return f"Line(number={self.number}, ...)"
+
+
+@dataclass
+class Highlight(Node):
+    """
+    Node with highlighting information.
+    """
+
+    highlights: List[str] = field(default_factory=list)
+    _children: List[Node] = field(default_factory=list)
+
+    @property
+    def children(self) -> Sequence[Node]:
+        return self._children
+
+    def replace_child(self, old: Node, new: Node) -> None:
+        raise NotImplementedError()
+
+    def __repr__(self) -> str:
+        """
+        String representation of this node.
+        """
+        return f"Highlight(highlights={self.highlights!r}, ...)"
+
+
+@dataclass
+class Text(Node):
+    """
+    Node containing simple text.
+    """
+
+    text: str
+
+    @property
+    def children(self) -> Tuple[()]:
+        return ()
+
+    def replace_child(self, old: Node, new: Node) -> None:
+        raise TypeError()
 
 
 class VerbatimNode(Node):
@@ -254,7 +338,7 @@ class VerbatimVisitor(Visitor):
         depth = self._depth
 
         if depth is None or depth < 1:
-            raise Exception("Fragment nodes must appear inside Varbatim")
+            raise Exception("Fragment nodes must appear inside Verbatim")
 
         self._copy(node, node.start)
 
@@ -308,3 +392,156 @@ class VerbatimVisitor(Visitor):
             return self._exit_verbatim(node)
         else:
             return self.exit_node(node)
+
+
+class _TranscribeVisitor(VerbatimVisitor):
+    context: Final[Context]
+    document: Final[Document]
+    root: Transcribed
+    output_stack: List[Node]
+    input_stack: List[Union[Sequence[str], references.Reference]]
+
+    def __init__(self, context: Context) -> None:
+        super().__init__()
+        self.context = context
+        self.document = context[Document]
+
+        self.root = Transcribed()
+
+        self.output_stack = []
+        self.input_stack = []
+
+    def line(self, source: TextSource, line: int) -> None:
+        line_node = Line(number=line)
+        self.root._children.append(line_node)
+        self.output_stack = [line_node]
+        self._highlight(self.input_stack)
+
+    def _highlight(
+        self,
+        highlight_groups: Sequence[Union[Sequence[str], references.Reference]],
+    ) -> None:
+        for item in highlight_groups:
+            top = self.output_stack[-1]
+
+            if isinstance(item, references.Reference):
+                new_node = references.Reference(identifier=item.identifier)
+            else:
+                new_node = Highlight(highlights=list(item))
+
+            if isinstance(top, references.Reference):
+                top.child = new_node
+            elif isinstance(top, (Highlight, Line)):
+                top._children.append(new_node)
+            else:
+                raise TypeError(
+                    f"expected Highlight or Line, got `{type(top)}`"
+                )
+
+            self.output_stack.append(new_node)
+
+    def text(self, text: str) -> None:
+        top = self.output_stack[-1]
+        new_node = Text(text)
+        if isinstance(top, references.Reference):
+            top.child = new_node
+        elif isinstance(top, (Highlight, Line)):
+            top._children.append(new_node)
+        else:
+            raise TypeError(f"expected Highlight or Line, got `{type(top)}`")
+
+    def begin_highlight(self, highlights: Sequence[str]) -> None:
+        self.input_stack.append(highlights)
+        self._highlight([highlights])
+
+    def end_highlight(self) -> None:
+        self.input_stack.pop()
+        popped_node = self.output_stack.pop()
+        assert isinstance(popped_node, Highlight)
+
+    def enter_node(self, node: Node) -> Visit:
+        """
+        Visit a non-verbatim Node.
+        """
+        if isinstance(node, references.Reference):
+            if "<" in node.identifier:
+                # TODO: Create definitions for local variables.
+                return Visit.TraverseChildren
+            self.input_stack.append(node)
+            if self.output_stack:
+                self._highlight([node])
+            return Visit.TraverseChildren
+        else:
+            return super().enter_node(node)
+
+    def exit_node(self, node: Node) -> None:
+        """
+        Leave a non-verbatim Node.
+        """
+        if isinstance(node, references.Reference):
+            if "<" in node.identifier:
+                # TODO: Create definitions for local variables.
+                return
+
+            popped = self.input_stack.pop()
+            assert popped == node
+
+            popped_output = self.output_stack.pop()
+            assert isinstance(
+                popped_output, (Line, Highlight, references.Reference)
+            )
+        else:
+            return super().exit_node(node)
+
+
+class _FindVisitor(Visitor):
+    context: Context
+    stack: List[Node]
+    root: Optional[Node]
+
+    def __init__(self, context: Context) -> None:
+        self.context = context
+        self.stack = []
+        self.root = None
+
+    def enter(self, node: Node) -> Visit:
+        self.stack.append(node)
+        if self.root is None:
+            self.root = node
+
+        if not isinstance(node, Verbatim):
+            return Visit.TraverseChildren
+
+        visitor = _TranscribeVisitor(self.context)
+        node.visit(visitor)
+
+        if len(self.stack) == 1:
+            self.root = visitor.root
+        else:
+            self.stack[-2].replace_child(node, visitor.root)
+
+        return Visit.SkipChildren
+
+    def exit(self, node: Node) -> None:
+        self.stack.pop()
+
+
+class Transcribe(Transform):
+    """
+    A plugin that converts position-based Verbatim nodes into transcribed
+    nodes.
+    """
+
+    def __init__(self, settings: PluginSettings) -> None:
+        pass
+
+    def transform(self, context: Context) -> None:
+        """
+        Apply the transformation to the given document.
+        """
+        document = context[Document]
+
+        visitor = _FindVisitor(context)
+        document.root.visit(visitor)
+        assert visitor.root is not None
+        document.root = visitor.root

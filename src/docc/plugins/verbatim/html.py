@@ -17,149 +17,100 @@
 Rendering functions to transform verbatim nodes into HTML.
 """
 
-from typing import Final, List, Sequence, Union
-
 from docc.context import Context
-from docc.document import Document, Node, Visit
-from docc.plugins import references
 from docc.plugins.html import (
     HTMLRoot,
     HTMLTag,
     RenderResult,
     TextNode,
-    render_reference,
 )
-from docc.source import TextSource
 
-from . import Verbatim, VerbatimVisitor
-
-
-class _VerbatimVisitor(VerbatimVisitor):
-    context: Final[Context]
-    document: Final[Document]
-    root: HTMLTag
-    body: HTMLTag
-    output_stack: List[Node]
-    input_stack: List[Union[Sequence[str], references.Reference]]
-
-    def __init__(self, context: Context) -> None:
-        super().__init__()
-        self.context = context
-        self.document = context[Document]
-
-        self.body = HTMLTag("tbody")
-
-        self.root = HTMLTag("table", attributes={"class": "verbatim"})
-        self.root.append(self.body)
-
-        self.output_stack = []
-        self.input_stack = []
-
-    def line(self, source: TextSource, line: int) -> None:
-        line_text = TextNode(str(line))
-
-        line_cell = HTMLTag("th")
-        line_cell.append(line_text)
-
-        code_pre = HTMLTag("pre")
-
-        code_cell = HTMLTag("td")
-        code_cell.append(code_pre)
-
-        row = HTMLTag("tr")
-        row.append(line_cell)
-        row.append(code_cell)
-
-        self.body.append(row)
-
-        self.output_stack = [code_pre]
-        self._highlight(self.input_stack)
-
-    def _highlight(
-        self,
-        highlight_groups: Sequence[Union[Sequence[str], references.Reference]],
-    ) -> None:
-        for item in highlight_groups:
-            top = self.output_stack[-1]
-            assert isinstance(top, HTMLTag)
-
-            if isinstance(item, references.Reference):
-                new_node = render_reference(self.context, item)
-            else:
-                classes = [f"hi-{h}" for h in item] + ["hi"]
-                new_node = HTMLTag(
-                    "span",
-                    attributes={
-                        "class": " ".join(classes),
-                    },
-                )
-
-            top.append(new_node)
-            self.output_stack.append(new_node)
-
-    def text(self, text: str) -> None:
-        top = self.output_stack[-1]
-        assert isinstance(top, HTMLTag)
-        top.append(TextNode(text))
-
-    def begin_highlight(self, highlights: Sequence[str]) -> None:
-        self.input_stack.append(highlights)
-        self._highlight([highlights])
-
-    def end_highlight(self) -> None:
-        self.input_stack.pop()
-        popped_node = self.output_stack.pop()
-        assert isinstance(popped_node, HTMLTag)
-        assert (
-            popped_node.tag_name == "span"
-        ), f"expected span, got `{popped_node.tag_name}`"
-
-    def enter_node(self, node: Node) -> Visit:
-        """
-        Visit a non-verbatim Node.
-        """
-        if isinstance(node, references.Reference):
-            if "<" in node.identifier:
-                # TODO: Create definitions for local variables.
-                return Visit.TraverseChildren
-            self.input_stack.append(node)
-            if self.output_stack:
-                self._highlight([node])
-            return Visit.TraverseChildren
-        else:
-            return super().enter_node(node)
-
-    def exit_node(self, node: Node) -> None:
-        """
-        Leave a non-verbatim Node.
-        """
-        if isinstance(node, references.Reference):
-            if "<" in node.identifier:
-                # TODO: Create definitions for local variables.
-                return
-
-            popped = self.input_stack.pop()
-            assert popped == node
-
-            popped_output = self.output_stack.pop()
-            assert isinstance(popped_output, HTMLTag)
-        else:
-            return super().exit_node(node)
+from . import Transcribed, Line, Text, Highlight
 
 
-def render_verbatim(
+def render_transcribed(
     context: Context,
     parent: object,
-    node: Verbatim,
+    node: object,
 ) -> RenderResult:
     """
-    Render a verbatim block as HTML.
+    Render a transcribed block as HTML.
     """
     assert isinstance(context, Context)
     assert isinstance(parent, (HTMLRoot, HTMLTag))
-    assert isinstance(node, Verbatim)
+    assert isinstance(node, Transcribed)
 
-    visitor = _VerbatimVisitor(context)
-    node.visit(visitor)
-    parent.append(visitor.root)
+    body = HTMLTag("tbody")
+    table = HTMLTag("table", attributes={"class": "verbatim"})
+    table.append(body)
+    parent.append(table)
+    return body
+
+
+def render_line(
+    context: Context,
+    parent: object,
+    node: object,
+) -> RenderResult:
+    """
+    Render a transcribed line as HTML.
+    """
+    assert isinstance(context, Context)
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
+    assert isinstance(node, Line)
+
+    line_text = TextNode(str(node.number))
+
+    line_cell = HTMLTag("th")
+    line_cell.append(line_text)
+
+    code_pre = HTMLTag("pre")
+
+    code_cell = HTMLTag("td")
+    code_cell.append(code_pre)
+
+    row = HTMLTag("tr")
+    row.append(line_cell)
+    row.append(code_cell)
+
+    parent.append(row)
+    return code_pre
+
+
+def render_text(
+    context: Context,
+    parent: object,
+    node: object,
+) -> RenderResult:
+    """
+    Render transcribed text as HTML.
+    """
+    assert isinstance(context, Context)
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
+    assert isinstance(node, Text)
+
+    parent.append(TextNode(node.text))
     return None
+
+
+def render_highlight(
+    context: Context,
+    parent: object,
+    node: object,
+) -> RenderResult:
+    """
+    Render transcribed text as HTML.
+    """
+    assert isinstance(context, Context)
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
+    assert isinstance(node, Highlight)
+
+    classes = [f"hi-{h}" for h in node.highlights] + ["hi"]
+    new_node = HTMLTag(
+        "span",
+        attributes={
+            "class": " ".join(classes),
+        },
+    )
+    parent.append(new_node)
+    return new_node
