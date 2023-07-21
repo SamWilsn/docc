@@ -47,7 +47,7 @@ from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import BlankNode, Document, ListNode, Node, Visit, Visitor
 from docc.plugins.references import Definition, Reference
-from docc.plugins.verbatim import Fragment, Pos, Stanza, Verbatim
+from docc.plugins.verbatim import Fragment, Pos, Verbatim
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
 from docc.transform import Transform
@@ -1066,11 +1066,9 @@ class _VerbatimTransform(Visitor):
 
         node.visit(transform)
 
-        verbatim = Verbatim()
-        stanza = Stanza(source)
+        verbatim = Verbatim(source)
         assert transform.root is not None
-        stanza.append(transform.root)
-        verbatim.append(stanza)
+        verbatim.append(transform.root)
         return verbatim
 
     def __init__(self) -> None:

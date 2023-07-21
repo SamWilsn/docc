@@ -91,19 +91,7 @@ class Pos:
 
 class Verbatim(VerbatimNode):
     """
-    A block of lines of text from one or more Sources.
-    """
-
-    def __repr__(self) -> str:
-        """
-        Textual representation of this instance.
-        """
-        return "Verbatim()"
-
-
-class Stanza(VerbatimNode):
-    """
-    A contiguous region of whole lines from a single Source.
+    A block of lines of text from one Source.
     """
 
     source: TextSource
@@ -116,7 +104,7 @@ class Stanza(VerbatimNode):
         """
         Textual representation of this instance.
         """
-        return f"Stanza({self.source!r})"
+        return f"Verbatim({self.source!r})"
 
 
 class Fragment(VerbatimNode):
@@ -145,8 +133,8 @@ class Fragment(VerbatimNode):
 
 
 @dataclass
-class _StanzaContext:
-    node: Stanza
+class _VerbatimContext:
+    node: Verbatim
     written: Optional[_Pos] = None
 
     @property
@@ -163,12 +151,12 @@ class VerbatimVisitor(Visitor):
     #       and read the text that way.
 
     _depth: Optional[int]
-    _stanza: Optional[_StanzaContext]
+    _verbatim: Optional[_VerbatimContext]
 
     def __init__(self) -> None:
         super().__init__()
         self._depth = None
-        self._stanza = None
+        self._verbatim = None
 
     #
     # Override in Subclasses:
@@ -226,30 +214,30 @@ class VerbatimVisitor(Visitor):
     #
 
     def _copy(self, node: Fragment, until: Pos) -> None:
-        stanza = self._stanza
+        verbatim = self._verbatim
 
-        assert stanza is not None
+        assert verbatim is not None
         assert until.line > 0
         assert until.column >= 0
 
-        if stanza.written is None:
-            stanza.written = _Pos(
+        if verbatim.written is None:
+            verbatim.written = _Pos(
                 line=node.start.line,
                 column=0,
             )
-            self.line(stanza.source, stanza.written.line)
+            self.line(verbatim.source, verbatim.written.line)
 
-        written = stanza.written
+        written = verbatim.written
         assert written is not None
 
         while written.line < until.line:
-            text = stanza.source.line(written.line)
+            text = verbatim.source.line(written.line)
             self.text(text[written.column :])
 
             written.line += 1
             written.column = 0
 
-            self.line(stanza.source, written.line)
+            self.line(verbatim.source, written.line)
 
         if written.line > until.line:
             return
@@ -257,7 +245,7 @@ class VerbatimVisitor(Visitor):
         if written.column >= until.column:
             return
 
-        text = stanza.source.line(written.line)
+        text = verbatim.source.line(written.line)
         self.text(text[written.column : until.column])
 
         written.column = until.column
@@ -265,10 +253,8 @@ class VerbatimVisitor(Visitor):
     def _enter_fragment(self, node: Fragment) -> Visit:
         depth = self._depth
 
-        if depth is None:
-            raise Exception("Fragment nodes must appear inside Verbatim")
-        if depth < 1:
-            raise Exception("Fragment nodes must appear inside Stanza")
+        if depth is None or depth < 1:
+            raise Exception("Fragment nodes must appear inside Varbatim")
 
         self._copy(node, node.start)
 
@@ -287,35 +273,18 @@ class VerbatimVisitor(Visitor):
 
         self._depth = depth - 1
 
-    def _enter_stanza(self, node: Stanza) -> Visit:
-        if self._depth is None:
-            raise Exception("Stanza nodes must appear inside Verbatim")
-
-        if self._depth != 0:
-            raise Exception("Stanza nodes cannot be nested")
-
-        assert self._stanza is None
-
-        self._depth = 1
-        self._stanza = _StanzaContext(node)
-
-        return Visit.TraverseChildren
-
-    def _exit_stanza(self, node: Stanza) -> None:
-        assert self._depth == 1
-        assert self._stanza is not None
-        assert self._stanza.node == node
-        self._depth = 0
-        self._stanza = None
-
     def _enter_verbatim(self, node: Verbatim) -> Visit:
         if self._depth is not None:
             raise Exception("Verbatim nodes cannot be nested")
-        self._depth = 0
+        self._depth = 1
+        self._verbatim = _VerbatimContext(node)
         return Visit.TraverseChildren
 
     def _exit_verbatim(self, node: Verbatim) -> None:
-        assert self._depth == 0
+        assert self._depth == 1
+        assert self._verbatim is not None
+        assert self._verbatim.node == node
+        self._verbatim = None
         self._depth = None
 
     def enter(self, node: Node) -> Visit:
@@ -324,8 +293,6 @@ class VerbatimVisitor(Visitor):
         """
         if isinstance(node, Fragment):
             return self._enter_fragment(node)
-        elif isinstance(node, Stanza):
-            return self._enter_stanza(node)
         elif isinstance(node, Verbatim):
             return self._enter_verbatim(node)
         else:
@@ -337,8 +304,6 @@ class VerbatimVisitor(Visitor):
         """
         if isinstance(node, Fragment):
             return self._exit_fragment(node)
-        elif isinstance(node, Stanza):
-            return self._exit_stanza(node)
         elif isinstance(node, Verbatim):
             return self._exit_verbatim(node)
         else:
