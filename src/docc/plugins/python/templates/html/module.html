@@ -37,7 +37,7 @@
     <nav class="toc col-12 col-3-md col-2-lg">
         <h3>Members</h3>
         <ul>
-            {% with attributes = node|find("docc.languages.python:Attribute") %}
+            {% with attributes = node|find("docc.plugins.python.nodes:Attribute") %}
             {% if attributes %}
             <li>
                 <h4>
@@ -59,7 +59,7 @@
             {% endif %}
             {% endwith %}
 
-            {% with classes = node|find("docc.languages.python:Class") %}
+            {% with classes = node|find("docc.plugins.python.nodes:Class") %}
             {% if classes %}
             <li>
                 <h4>
@@ -79,7 +79,7 @@
             {% endif %}
             {% endwith %}
 
-            {% with functions = node|find("docc.languages.python:Function") %}
+            {% with functions = node|find("docc.plugins.python.nodes:Function") %}
             {% if functions %}
             <li>
                 <h4>

@@ -34,8 +34,8 @@
     {%- endif %}:</pre>
 
     {% with %}
-    {% set attributes = node|find("docc.languages.python:Attribute") %}
-    {% set functions = node|find("docc.languages.python:Function") %}
+    {% set attributes = node|find("docc.plugins.python.nodes:Attribute") %}
+    {% set functions = node|find("docc.plugins.python.nodes:Function") %}
     {% if attributes or functions %}
     <nav class="toc code-like">
         <ul>
