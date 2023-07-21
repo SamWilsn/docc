@@ -46,8 +46,8 @@ from docc.build import Builder
 from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import BlankNode, Document, ListNode, Node, Visit, Visitor
-from docc.languages.verbatim import Fragment, Pos, Stanza, Verbatim
 from docc.plugins.references import Definition, Reference
+from docc.plugins.verbatim import Fragment, Pos, Stanza, Verbatim
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
 from docc.transform import Transform

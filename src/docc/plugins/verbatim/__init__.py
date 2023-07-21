@@ -23,8 +23,8 @@ from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence
 
-from ..document import Node, Visit, Visitor
-from ..source import TextSource
+from docc.document import Node, Visit, Visitor
+from docc.source import TextSource
 
 
 class VerbatimNode(Node):
