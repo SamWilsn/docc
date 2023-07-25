@@ -21,26 +21,40 @@ highlighting support.
 import logging
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import Iterable, List, Optional, Sequence, Final, Union, Tuple
+from typing import Final, Iterable, List, Optional, Sequence, Tuple, Union
 
 from docc.context import Context
-from docc.document import Node, Visit, Visitor, BlankNode, Document
-from docc.source import TextSource
-from docc.transform import Transform
+from docc.document import Document, Node, Visit, Visitor
 from docc.plugins import references
 from docc.settings import PluginSettings
+from docc.source import TextSource
+from docc.transform import Transform
 
 
 @dataclass
 class Transcribed(Node):
+    """
+    A block of verbatim text.
+
+    Unlike `Verbatim` nodes, `Transcribed` blocks actually contain the text
+    from the `Source`, instead of a line numbers and ranges. This makes them
+    more useful for further processing.
+    """
+
     _children: List[Node] = field(default_factory=list)
 
     @property
     def children(self) -> Iterable[Node]:
+        """
+        Child nodes belonging to this node.
+        """
         return self._children
 
     def replace_child(self, old: Node, new: Node) -> None:
-        raise NotImplementedError()
+        """
+        Replace the old node with the new node.
+        """
+        self._children = [new if x == old else x for x in self._children]
 
     def __repr__(self) -> str:
         """
@@ -60,10 +74,16 @@ class Line(Node):
 
     @property
     def children(self) -> Iterable[Node]:
+        """
+        Child nodes belonging to this node.
+        """
         return self._children
 
     def replace_child(self, old: Node, new: Node) -> None:
-        raise NotImplementedError()
+        """
+        Replace the old child with the new one.
+        """
+        self._children = [new if x == old else x for x in self._children]
 
     def __repr__(self) -> str:
         """
@@ -83,10 +103,16 @@ class Highlight(Node):
 
     @property
     def children(self) -> Sequence[Node]:
+        """
+        Return the children of this node.
+        """
         return self._children
 
     def replace_child(self, old: Node, new: Node) -> None:
-        raise NotImplementedError()
+        """
+        Replace the old child with the provided new one.
+        """
+        self._children = [new if x == old else x for x in self._children]
 
     def __repr__(self) -> str:
         """
@@ -105,9 +131,15 @@ class Text(Node):
 
     @property
     def children(self) -> Tuple[()]:
+        """
+        Return the children of this node.
+        """
         return ()
 
     def replace_child(self, old: Node, new: Node) -> None:
+        """
+        Replace the old child with a new one.
+        """
         raise TypeError()
 
 

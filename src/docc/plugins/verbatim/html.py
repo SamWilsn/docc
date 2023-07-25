@@ -18,14 +18,9 @@ Rendering functions to transform verbatim nodes into HTML.
 """
 
 from docc.context import Context
-from docc.plugins.html import (
-    HTMLRoot,
-    HTMLTag,
-    RenderResult,
-    TextNode,
-)
+from docc.plugins.html import HTMLRoot, HTMLTag, RenderResult, TextNode
 
-from . import Transcribed, Line, Text, Highlight
+from . import Highlight, Line, Text, Transcribed
 
 
 def render_transcribed(
@@ -40,11 +35,9 @@ def render_transcribed(
     assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(node, Transcribed)
 
-    body = HTMLTag("tbody")
     table = HTMLTag("table", attributes={"class": "verbatim"})
-    table.append(body)
     parent.append(table)
-    return body
+    return table
 
 
 def render_line(
@@ -73,7 +66,12 @@ def render_line(
     row.append(line_cell)
     row.append(code_cell)
 
-    parent.append(row)
+    if isinstance(parent, HTMLTag) and parent.tag_name.casefold() == "table":
+        tbody = HTMLTag("tbody")
+        tbody.append(row)
+        parent.append(tbody)
+    else:
+        parent.append(row)
     return code_pre
 
 

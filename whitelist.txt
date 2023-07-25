@@ -1,5 +1,6 @@
 asts
 autoescape
+casefold
 charref
 charrefs
 copyfileobj
@@ -54,6 +55,7 @@ stmt
 strikethrough
 subclasses
 superclass
+tbody
 this'll
 toml
 tomli
