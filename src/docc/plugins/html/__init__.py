@@ -66,7 +66,7 @@ else:
     from importlib.metadata import EntryPoint, entry_points
 
 
-RenderResult = Optional["HTMLTag"]
+RenderResult = Optional[Union["HTMLTag", "HTMLRoot"]]
 
 
 class HTMLDiscover(Discover):
@@ -370,7 +370,7 @@ class HTMLVisitor(Visitor):
             # Always append something so the exit implementation is simpler.
             self.stack.append(BlankNode())
             return Visit.SkipChildren
-        elif isinstance(result, HTMLTag):
+        elif isinstance(result, (HTMLTag, HTMLRoot)):
             self.stack.append(result)
             return Visit.TraverseChildren
         else:
