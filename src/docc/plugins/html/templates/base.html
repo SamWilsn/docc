@@ -26,6 +26,9 @@
         <script defer src="{{ static_path }}/fuse.min.js"></script>
         <script defer src="{{ static_path }}/search.js"></script>
         {% endif %}
+        {% for sheet in extra_css %}
+        <link href="{{ sheet }}" rel="stylesheet">
+        {% endfor %}
     </head>
     <body>
         {% if search_path %}

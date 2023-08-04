@@ -14,6 +14,7 @@ line-length = 79
 context = [
     "docc.references.context",
     "docc.search.context",
+    "docc.html.context",
 ]
 
 discovery = [
@@ -21,11 +22,13 @@ discovery = [
     "docc.html.discover",
     "docc.python.discover",
     "docc.listing.discover",
+    "docc.files.discover",
 ]
 
 build = [
     "docc.search.build",
     "docc.python.build",
+    "docc.files.build",
     "docc.listing.build",
     "docc.resources.build",
 ]

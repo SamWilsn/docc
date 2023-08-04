@@ -190,7 +190,7 @@ def render_html(
         autoescape=select_autoescape(),
     )
     template = env.get_template("listing.html")
-    parser = html.HTMLParser()
+    parser = html.HTMLParser(context)
     parser.feed(template.render(context=context, entries=entries))
     for child in parser.root._children:
         parent.append(child)

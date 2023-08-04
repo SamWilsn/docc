@@ -41,6 +41,7 @@ from typing import (
 import libcst as cst
 from inflection import dasherize, underscore
 from libcst.metadata import ExpressionContext
+from typing_extensions import assert_never
 
 from docc.build import Builder
 from docc.context import Context
@@ -309,7 +310,11 @@ class _CstVisitor(cst.CSTVisitor):
         self.all_modules = all_modules
 
     def on_visit(self, node: cst.CSTNode) -> bool:
-        position = self.get_metadata(cst.metadata.PositionProvider, node)
+        try:
+            position = self.get_metadata(cst.metadata.PositionProvider, node)
+        except KeyError:
+            return True
+
         type_ = None  # self.get_metadata(
         #    cst.metadata.TypeInferenceProvider, node, None
         # )
@@ -366,6 +371,10 @@ class _CstVisitor(cst.CSTVisitor):
         return True
 
     def on_leave(self, original_node: cst.CSTNode) -> None:
+        try:
+            self.get_metadata(cst.metadata.PositionProvider, original_node)
+        except KeyError:
+            return
         self.stack.pop()
 
 
@@ -679,7 +688,16 @@ class _TransformVisitor(Visitor):
         if not isinstance(cst_value, cst.SimpleString):
             return None
 
-        return nodes.Docstring(text=cst_value.evaluated_value)
+        value = cst_value.evaluated_value
+        if isinstance(value, str):
+            text = value
+        elif isinstance(value, bytes):
+            text = value.decode(encoding="utf-8", errors="strict")
+        else:
+            assert_never(value)
+            raise AssertionError()
+
+        return nodes.Docstring(text=text)
 
     def _enter_assignment(
         self,

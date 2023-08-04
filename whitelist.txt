@@ -42,6 +42,7 @@ pathname2url
 perf
 Pos
 ptag
+removeprefix
 renderer
 renderers
 repo

@@ -21,12 +21,14 @@ Plugin that renders to HTML.
 import html.parser
 import sys
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from io import StringIO, TextIOBase
 from os.path import commonpath
 from pathlib import PurePath
 from typing import (
     Callable,
     Dict,
+    Final,
     FrozenSet,
     Iterable,
     Iterator,
@@ -48,7 +50,7 @@ from jinja2.ext import Extension
 from jinja2.parser import Parser
 from jinja2.runtime import Context as JinjaContext
 
-from docc.context import Context
+from docc.context import Context, Provider
 from docc.discover import Discover, T
 from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
 from docc.plugins import references
@@ -56,7 +58,7 @@ from docc.plugins.loader import PluginError
 from docc.plugins.references import Index, ReferenceError
 from docc.plugins.resources import ResourceSource
 from docc.plugins.search import Search
-from docc.settings import PluginSettings
+from docc.settings import PluginSettings, SettingsError
 from docc.source import Source
 from docc.transform import Transform
 
@@ -69,6 +71,45 @@ else:
 RenderResult = Optional[Union["HTMLTag", "HTMLRoot"]]
 
 
+@dataclass(frozen=True)
+class HTML:
+    """
+    Configuration for HTML output.
+    """
+
+    extra_css: Sequence[str]
+
+
+class HTMLContext(Provider[HTML]):
+    """
+    Store HTML configuration options in the global context.
+    """
+
+    html: Final[HTML]
+
+    @classmethod
+    def provides(class_) -> Type[HTML]:
+        """
+        Return the type to be used as the key in the Context.
+        """
+        return HTML
+
+    def __init__(self, config: PluginSettings) -> None:
+        """
+        Create a Provider with the given configuration.
+        """
+        extra_css = config.get("extra_css", [])
+        if any(not isinstance(x, str) for x in extra_css):
+            raise SettingsError("`extra_css` items must be strings")
+        self.html = HTML(extra_css=extra_css)
+
+    def provide(self) -> HTML:
+        """
+        Create the object to be inserted into the Context.
+        """
+        return self.html
+
+
 class HTMLDiscover(Discover):
     """
     Create sources for static files necessary for HTML output.
@@ -78,7 +119,6 @@ class HTMLDiscover(Discover):
         """
         Construct a new instance with the given configuration.
         """
-        pass
 
     def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
         """
@@ -199,9 +239,14 @@ class HTMLRoot(OutputNode):
     """
 
     _children: List[Union[HTMLTag, TextNode]]
+    extra_css: Sequence[str]
 
-    def __init__(self) -> None:
+    def __init__(self, context: Context) -> None:
         self._children = []
+        try:
+            self.extra_css = context[HTML].extra_css
+        except KeyError:
+            self.extra_css = []
 
     @property
     def children(self) -> Iterable[Union[HTMLTag, TextNode]]:
@@ -253,12 +298,17 @@ class HTMLRoot(OutputNode):
             search_path = _search_path_from(context)
             search_base = _project_path_from(context)
 
+        extra_css = [
+            f"{_project_path_from(context)}/{x}" for x in self.extra_css
+        ]
+
         destination.write(
             template.render(
                 body=markupsafe.Markup(body),
                 static_path=static_path,
                 search_path=search_path,
                 search_base=search_base,
+                extra_css=extra_css,
             )
         )
 
@@ -329,7 +379,7 @@ class HTMLVisitor(Visitor):
         # Discover render functions.
         found = entry_points(group="docc.plugins.html")
         self.entry_points = {entry.name: entry for entry in found}
-        self.root = HTMLRoot()
+        self.root = HTMLRoot(context)
         self.stack = [self.root]
         self.renderers = {}
         self.context = context
@@ -417,9 +467,9 @@ class HTMLParser(html.parser.HTMLParser):
     root: HTMLRoot
     stack: List[Union[HTMLRoot, HTMLTag]]
 
-    def __init__(self) -> None:
+    def __init__(self, context: Context) -> None:
         super().__init__()
-        self.root = HTMLRoot()
+        self.root = HTMLRoot(context)
         self.stack = [self.root]
 
     def handle_starttag(
@@ -546,7 +596,7 @@ class _ReferenceExtension(Extension):
     def _reference_support(
         self, identifier: str, context: JinjaContext, caller: Callable[[], str]
     ) -> markupsafe.Markup:
-        parser = HTMLParser()
+        parser = HTMLParser(Context())
         parser.feed(caller())
 
         children = parser.root._children
@@ -650,7 +700,7 @@ def render_template(
     env.filters["html"] = _html_filter
     env.filters["find"] = _find_filter
     template = env.get_template(template_name)
-    parser = HTMLParser()
+    parser = HTMLParser(context)
     parser.feed(
         template.render(context=context, node=node, static_path=static_path)
     )

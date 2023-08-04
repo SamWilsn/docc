@@ -140,7 +140,7 @@ class _DocstringVisitor(Visitor):
 
 
 def _render_strong(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -150,7 +150,7 @@ def _render_strong(
 
 
 def _render_emphasis(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -160,7 +160,7 @@ def _render_emphasis(
 
 
 def _render_inline_code(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -170,7 +170,7 @@ def _render_inline_code(
 
 
 def _render_raw_text(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -181,7 +181,7 @@ def _render_raw_text(
 
 
 def _render_strikethrough(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -191,7 +191,7 @@ def _render_strikethrough(
 
 
 def _render_image(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -209,7 +209,7 @@ def _render_image(
 
 
 def _render_link(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -224,7 +224,7 @@ def _render_link(
 
 
 def _render_auto_link(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -241,7 +241,7 @@ def _render_auto_link(
 
 
 def _render_escape_sequence(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -249,7 +249,7 @@ def _render_escape_sequence(
 
 
 def _render_heading(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -261,7 +261,7 @@ def _render_heading(
 
 
 def _render_quote(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -274,7 +274,7 @@ def _render_quote(
 
 
 def _render_paragraph(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -287,7 +287,7 @@ def _render_paragraph(
 
 
 def _render_block_code(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -299,7 +299,7 @@ def _render_block_code(
 
 
 def _render_list(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -318,7 +318,7 @@ def _render_list(
 
 
 def _render_list_item(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -331,7 +331,7 @@ def _render_list_item(
 
 
 def _render_table(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -342,7 +342,7 @@ def _render_table(
 
 
 def _render_table_row(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -353,7 +353,7 @@ def _render_table_row(
 
 
 def _render_table_cell(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -374,7 +374,7 @@ def _render_table_cell(
 
 
 def _render_thematic_break(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -383,7 +383,7 @@ def _render_thematic_break(
 
 
 def _render_line_break(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -395,13 +395,13 @@ def _render_line_break(
 
 
 def _render_html_span(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
     token = node.token
     assert isinstance(token, spans.HTMLSpan)
-    parser = html.HTMLParser()
+    parser = html.HTMLParser(context)
     parser.feed(token.content)
     for child in parser.root.children:
         parent.append(child)
@@ -409,13 +409,13 @@ def _render_html_span(
 
 
 def _render_html_block(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
     token = node.token
     assert isinstance(token, blocks.HTMLBlock)
-    parser = html.HTMLParser()
+    parser = html.HTMLParser(context)
     parser.feed(token.content)
     for child in parser.root.children:
         parent.append(child)
@@ -423,7 +423,7 @@ def _render_html_block(
 
 
 def _render_document(
-    document: Document,
+    context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
@@ -436,7 +436,7 @@ def _render_document(
 
 
 _RENDER_FUNC: TypeAlias = Callable[
-    [Document, Union[html.HTMLRoot, html.HTMLTag], MarkdownNode],
+    [Context, Union[html.HTMLRoot, html.HTMLTag], MarkdownNode],
     html.RenderResult,
 ]
 
@@ -481,9 +481,7 @@ def render_html(
     assert isinstance(parent, (html.HTMLRoot, html.HTMLTag))
     assert isinstance(node, MarkdownNode)
 
-    return _RENDERERS[node.token.__class__.__name__](
-        context[Document], parent, node
-    )
+    return _RENDERERS[node.token.__class__.__name__](context, parent, node)
 
 
 class _SearchVisitor(Visitor):

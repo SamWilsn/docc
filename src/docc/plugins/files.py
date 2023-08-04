@@ -14,84 +14,60 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Plugin for working with importlib resources.
+Plugin for working with files.
 """
 
 import shutil
 from io import TextIOBase
-from pathlib import PurePath
-from typing import Dict, Set, Tuple, Type, TypeVar
-
-from importlib_resources import files
-from importlib_resources.abc import Traversable
+from pathlib import Path, PurePath
+from typing import Dict, Final, FrozenSet, Iterator, Sequence, Set, Tuple
 
 from docc.build import Builder
 from docc.context import Context
+from docc.discover import Discover, T
 from docc.document import Document, Node, OutputNode
 from docc.settings import PluginSettings
 from docc.source import Source
 
-R = TypeVar("R", bound="ResourceSource")
 
-
-class ResourceSource(Source):
+class FileSource(Source):
     """
-    A Source representing an importlib file.
+    A Source representing a file.
     """
 
-    resource: Traversable
-    _output_path: PurePath
-    extension: str
-
-    @classmethod
-    def with_path(
-        cls: Type[R], mod: str, input_path: PurePath, output_path: PurePath
-    ) -> R:
-        """
-        Create a source for a resource `input_path`, relative to the Python
-        module `mod`, to be output at `output_path`. Note that `output_path`
-        should not have a file extension (or "suffix".)
-        """
-        return cls(
-            files(mod) / input_path,
-            output_path,
-            "".join(input_path.suffixes),
-        )
+    _relative_path: Final[PurePath]
+    absolute_path: Final[PurePath]
 
     def __init__(
-        self, resource: Traversable, output_path: PurePath, extension: str
+        self, relative_path: PurePath, absolute_path: PurePath
     ) -> None:
-        self._output_path = output_path
-        self.resource = resource
-        self.extension = extension
+        self._relative_path = relative_path
+        self.absolute_path = absolute_path
 
     @property
-    def relative_path(self) -> None:
+    def relative_path(self) -> PurePath:
         """
-        Path relative to the project root.
+        Location of this source, relative to the project root.
         """
-        return None
+        return self._relative_path
 
     @property
     def output_path(self) -> PurePath:
         """
-        Where to write the output from this Source relative to the output path.
+        Where the output of this source should end up.
         """
-        return self._output_path
+        return self.relative_path.with_suffix("")
 
 
-class ResourceNode(OutputNode):
+class FileNode(OutputNode):
     """
-    A node representing an `importlib` resource, to be copied to the output
-    directory.
+    A node representing a file to be copied to the output directory.
     """
 
-    _extension: str
-    resource: Traversable
+    path: Path
 
-    def __init__(self, resource: Traversable, extension: str) -> None:
-        self.resource = resource
-        self._extension = extension
+    def __init__(self, path: Path) -> None:
+        self.path = path
 
     def replace_child(self, old: Node, new: Node) -> None:
         """
@@ -111,19 +87,19 @@ class ResourceNode(OutputNode):
         """
         The preferred file extension for this node.
         """
-        return self._extension
+        return self.path.suffix
 
     def output(self, context: Context, destination: TextIOBase) -> None:
         """
         Write this Node to destination.
         """
-        with self.resource.open("r") as f:
+        with self.path.open("r") as f:
             shutil.copyfileobj(f, destination)
 
 
-class ResourceBuilder(Builder):
+class FilesBuilder(Builder):
     """
-    Collect resource sources and open them for reading.
+    Collect file sources and prepare them for reading.
     """
 
     def __init__(self, config: PluginSettings) -> None:
@@ -139,12 +115,41 @@ class ResourceBuilder(Builder):
         """
         Consume unprocessed Sources and insert their Documents into processed.
         """
-        source_set = set(
-            s for s in unprocessed if isinstance(s, ResourceSource)
-        )
+        source_set = set(s for s in unprocessed if isinstance(s, FileSource))
         unprocessed -= source_set
 
         for source in source_set:
             processed[source] = Document(
-                ResourceNode(source.resource, source.extension),
+                FileNode(Path(source.absolute_path)),
             )
+
+
+class FilesDiscover(Discover):
+    """
+    Create sources for static files.
+    """
+
+    sources: Sequence[FileSource]
+
+    def __init__(self, config: PluginSettings) -> None:
+        """
+        Construct a new instance with the given configuration.
+        """
+        files = config.get("files")
+        if files is None:
+            self.sources = []
+        else:
+            sources = []
+
+            for item in files:
+                absolute_path = config.resolve_path(PurePath(item))
+                relative_path = config.unresolve_path(absolute_path)
+                sources.append(FileSource(relative_path, absolute_path))
+
+            self.sources = sources
+
+    def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
+        """
+        Find sources.
+        """
+        return iter(self.sources)
