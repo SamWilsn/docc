@@ -387,7 +387,7 @@ class HTMLVisitor(Visitor):
         self.stack.pop()
 
 
-class HTML(Transform):
+class HTMLTransform(Transform):
     """
     A plugin that renders to HTML.
     """

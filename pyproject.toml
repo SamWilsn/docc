@@ -36,7 +36,7 @@ transform = [
     "docc.verbatim.transform",
     "docc.references.index",
     "docc.search.transform",
-    "docc.html",
+    "docc.html.transform",
 ]
 
 [tool.docc.plugins."docc.python.discover"]
