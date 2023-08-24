@@ -60,6 +60,7 @@ WHITESPACE: Tuple[Type[cst.CSTNode], ...] = (
     cst.EmptyLine,
     cst.SimpleWhitespace,
     cst.ParenthesizedWhitespace,
+    cst.Newline,
 )
 """
 libcst nodes that count as whitespace and should be ignored.
@@ -813,6 +814,8 @@ class _TransformVisitor(Visitor):
         elif isinstance(cst_node, cst.Pass):
             visit = Visit.SkipChildren
         elif isinstance(cst_node, WHITESPACE):
+            visit = Visit.TraverseChildren
+        elif isinstance(cst_node, cst.Comment):
             visit = Visit.SkipChildren
         elif module_member and isinstance(cst_node, cst.CSTNode):
             logging.debug("skipping module member node %s", node)
@@ -855,6 +858,8 @@ class _TransformVisitor(Visitor):
         elif isinstance(cst_node, cst.Pass):
             pass
         elif isinstance(cst_node, WHITESPACE):
+            pass
+        elif isinstance(cst_node, cst.Comment):
             pass
         elif module_member and isinstance(cst_node, cst.CSTNode):
             pass

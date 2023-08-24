@@ -258,6 +258,28 @@ class _VerbatimContext:
         return self.node.source
 
 
+class _BoundsVisitor(Visitor):
+    start: Optional[Pos]
+    end: Optional[Pos]
+
+    def __init__(self) -> None:
+        self.start = None
+        self.end = None
+
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, Fragment):
+            if self.start is None or node.start < self.start:
+                self.start = node.start
+
+            if self.end is None or node.end > self.end:
+                self.end = node.end
+
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass
+
+
 class VerbatimVisitor(Visitor):
     """
     Visitor for verbatim node trees that emits a series of events.
@@ -329,7 +351,7 @@ class VerbatimVisitor(Visitor):
     # Implementation Details:
     #
 
-    def _copy(self, node: Fragment, until: Pos) -> None:
+    def _copy(self, start_line: int, until: Pos) -> None:
         verbatim = self._verbatim
 
         assert verbatim is not None
@@ -338,7 +360,7 @@ class VerbatimVisitor(Visitor):
 
         if verbatim.written is None:
             verbatim.written = _Pos(
-                line=node.start.line,
+                line=start_line,
                 column=0,
             )
             self.line(verbatim.source, verbatim.written.line)
@@ -372,7 +394,7 @@ class VerbatimVisitor(Visitor):
         if depth is None or depth < 1:
             raise Exception("Fragment nodes must appear inside Verbatim")
 
-        self._copy(node, node.start)
+        self._copy(node.start.line, node.start)
 
         self._depth = depth + 1
         self.begin_highlight(node.highlights)
@@ -384,7 +406,7 @@ class VerbatimVisitor(Visitor):
         assert depth is not None
         assert depth > 1
 
-        self._copy(node, node.end)
+        self._copy(node.start.line, node.end)
         self.end_highlight()
 
         self._depth = depth - 1
@@ -412,6 +434,11 @@ class VerbatimVisitor(Visitor):
         elif isinstance(node, Verbatim):
             return self._enter_verbatim(node)
         else:
+            # TODO: Save the results somewhere so we don't visit twice.
+            visitor = _BoundsVisitor()
+            node.visit(visitor)
+            if visitor.start is not None:
+                self._copy(visitor.start.line, visitor.start)
             return self.enter_node(node)
 
     def exit(self, node: Node) -> None:
@@ -423,6 +450,12 @@ class VerbatimVisitor(Visitor):
         elif isinstance(node, Verbatim):
             return self._exit_verbatim(node)
         else:
+            # TODO: Save the results somewhere so we don't visit twice.
+            visitor = _BoundsVisitor()
+            node.visit(visitor)
+            if visitor.end is not None:
+                start = visitor.start or visitor.end
+                self._copy(start.line, visitor.end)
             return self.exit_node(node)
 
 
@@ -462,6 +495,7 @@ class _TranscribeVisitor(VerbatimVisitor):
                 new_node = Highlight(highlights=list(item))
 
             if isinstance(top, references.Reference):
+                assert not top.child
                 top.child = new_node
             elif isinstance(top, (Highlight, Line)):
                 top._children.append(new_node)
@@ -476,6 +510,7 @@ class _TranscribeVisitor(VerbatimVisitor):
         top = self.output_stack[-1]
         new_node = Text(text)
         if isinstance(top, references.Reference):
+            assert not top.child
             top.child = new_node
         elif isinstance(top, (Highlight, Line)):
             top._children.append(new_node)
