@@ -52,7 +52,15 @@ from jinja2.runtime import Context as JinjaContext
 
 from docc.context import Context, Provider
 from docc.discover import Discover, T
-from docc.document import BlankNode, Document, Node, OutputNode, Visit, Visitor
+from docc.document import (
+    BlankNode,
+    Document,
+    ListNode,
+    Node,
+    OutputNode,
+    Visit,
+    Visitor,
+)
 from docc.plugins import references
 from docc.plugins.loader import PluginError
 from docc.plugins.references import Index, ReferenceError
@@ -796,6 +804,19 @@ def references_reference(
     # TODO: handle tr, td, and other elements that can't be wrapped in an <a>.
 
     return anchor
+
+
+def list_node(
+    context: object,
+    parent: object,
+    node: object,
+) -> RenderResult:
+    """
+    Render a ListNode as HTML.
+    """
+    assert isinstance(parent, (HTMLRoot, HTMLTag))
+    assert isinstance(node, ListNode)
+    return parent
 
 
 def html_tag(
