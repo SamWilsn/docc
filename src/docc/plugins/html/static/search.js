@@ -1,3 +1,6 @@
+/*!
+ * docc | MIT License | https://github.com/SamWilsn/docc
+ */
 (function() {
     "use strict";
 
