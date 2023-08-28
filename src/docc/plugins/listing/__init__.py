@@ -17,6 +17,7 @@
 Plugin that renders directory listings.
 """
 
+from abc import ABC, abstractmethod
 from os.path import commonpath
 from pathlib import PurePath
 from typing import Dict, Final, FrozenSet, Iterator, Set, Tuple
@@ -30,6 +31,20 @@ from docc.document import Document, Node
 from docc.plugins import html
 from docc.settings import PluginSettings
 from docc.source import Source
+
+
+class Listable(ABC):
+    """
+    Mixin to change visibility of a Source in a directory listing.
+    """
+
+    @property
+    @abstractmethod
+    def show_in_listing(self) -> bool:
+        """
+        `True` if this `Source` should be shown in directory listings.
+        """
+        raise NotImplementedError()
 
 
 class ListingDiscover(Discover):
@@ -47,11 +62,17 @@ class ListingDiscover(Discover):
         listings = {}
 
         for source in known:
-            relative_path = source.relative_path
-            if not relative_path:
+            path = source.relative_path
+            if isinstance(source, Listable):
+                if not source.show_in_listing:
+                    continue
+            elif not path:
                 continue
 
-            for parent in relative_path.parents:
+            if not path:
+                path = source.output_path
+
+            for parent in path.parents:
                 try:
                     listing = listings[parent]
                 except KeyError:
@@ -181,7 +202,8 @@ def render_html(
                 + ".html"
             )  # TODO: Don't hardcode extension.
 
-        entries.append((source.relative_path, relative_path))
+        path = source.relative_path or source.output_path
+        entries.append((path, relative_path))
 
     entries.sort()
 
