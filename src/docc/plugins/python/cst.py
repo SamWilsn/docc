@@ -73,6 +73,7 @@ class PythonDiscover(Discover):
     """
 
     paths: Sequence[str]
+    excluded_paths: Final[Sequence[PurePath]]
     settings: PluginSettings
 
     def __init__(self, config: PluginSettings) -> None:
@@ -91,6 +92,15 @@ class PythonDiscover(Discover):
 
         self.paths = [str(config.resolve_path(path)) for path in paths]
 
+        excluded_paths = config.get("excluded_paths", [])
+        if not isinstance(excluded_paths, Sequence):
+            raise TypeError("python excluded paths must be a list")
+
+        if any(not isinstance(path, str) for path in excluded_paths):
+            raise TypeError("every python path must be a string")
+
+        self.excluded_paths = [PurePath(p) for p in excluded_paths]
+
     def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
         """
         Find sources.
@@ -105,7 +115,9 @@ class PythonDiscover(Discover):
                 absolute_path = PurePath(absolute_text)
                 relative_path = self.settings.unresolve_path(absolute_path)
 
-                yield PythonSource(root_path, relative_path, absolute_path)
+                parents = relative_path.parents
+                if not any(p in parents for p in self.excluded_paths):
+                    yield PythonSource(root_path, relative_path, absolute_path)
 
 
 class PythonSource(TextSource):
