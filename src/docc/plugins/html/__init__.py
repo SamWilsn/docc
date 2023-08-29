@@ -86,6 +86,7 @@ class HTML:
     """
 
     extra_css: Sequence[str]
+    breadcrumbs: bool
 
 
 class HTMLContext(Provider[HTML]):
@@ -109,7 +110,12 @@ class HTMLContext(Provider[HTML]):
         extra_css = config.get("extra_css", [])
         if any(not isinstance(x, str) for x in extra_css):
             raise SettingsError("`extra_css` items must be strings")
-        self.html = HTML(extra_css=extra_css)
+
+        breadcrumbs = config.get("breadcrumbs", True)
+        if not isinstance(breadcrumbs, bool):
+            raise SettingsError("breadcrumbs must be boolean")
+
+        self.html = HTML(extra_css=extra_css, breadcrumbs=breadcrumbs)
 
     def provide(self) -> HTML:
         """
@@ -248,13 +254,21 @@ class HTMLRoot(OutputNode):
 
     _children: List[Union[HTMLTag, TextNode]]
     extra_css: Sequence[str]
+    breadcrumbs: bool
+    context: Context
 
     def __init__(self, context: Context) -> None:
         self._children = []
+        self.context = context
+
         try:
-            self.extra_css = context[HTML].extra_css
+            html = context[HTML]
         except KeyError:
             self.extra_css = []
+            self.breadcrumbs = True
+        else:
+            self.extra_css = html.extra_css
+            self.breadcrumbs = html.breadcrumbs
 
     @property
     def children(self) -> Iterable[Union[HTMLTag, TextNode]]:
@@ -310,6 +324,20 @@ class HTMLRoot(OutputNode):
             f"{_project_path_from(context)}/{x}" for x in self.extra_css
         ]
 
+        breadcrumbs = []
+        path = self.context[Source].output_path
+
+        if self.breadcrumbs:
+            for parent in reversed(path.parents):
+                index_path = parent / "index.html"
+                relative_path = _make_relative(path, index_path)
+                if relative_path is None:
+                    relative_path_str = ""
+                else:
+                    relative_path_str = str(relative_path)
+                url = pathname2url(relative_path_str)
+                breadcrumbs.append((parent, url))
+
         destination.write(
             template.render(
                 body=markupsafe.Markup(body),
@@ -317,6 +345,8 @@ class HTMLRoot(OutputNode):
                 search_path=search_path,
                 search_base=search_base,
                 extra_css=extra_css,
+                output_path=path,
+                breadcrumbs=breadcrumbs,
             )
         )
 
