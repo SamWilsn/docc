@@ -5,6 +5,7 @@
     "src"
   ],
   "search_path": [
+    "./src",
     {"site-package": "mistletoe"},
     {"site-package": "importlib_resources"}
   ]
