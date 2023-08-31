@@ -35,14 +35,14 @@ class Transform(ABC):
         """
         Create a Transform with the given configuration.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def transform(self, context: Context) -> None:
         """
         Apply the transformation to the given document.
         """
-        pass
+        raise NotImplementedError()
 
 
 def load(settings: Settings) -> Sequence[Tuple[str, Transform]]:

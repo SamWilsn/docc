@@ -14,10 +14,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-docc
-====
-
 The documentation compiler.
 """
 
 __version__ = "0.1.0"
+"Current version of docc"

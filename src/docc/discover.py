@@ -37,14 +37,14 @@ class Discover(ABC):
         """
         Construct a new instance with the given configuration.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
         """
         Find sources.
         """
-        pass
+        raise NotImplementedError()
 
 
 def load(settings: Settings) -> Sequence[Tuple[str, Discover]]:
