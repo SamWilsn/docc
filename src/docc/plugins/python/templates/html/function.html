@@ -21,13 +21,15 @@
         {{ node.docstring|html }}
     </div>
     {% endif %}
-    {% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
-    <details open>
-        <summary class="code-like">
-            <code>
-            {%- if node.asynchronous %}async {% endif -%}
-def {{ node.name|html }}({% for arg in node.parameters %}{{ arg|html }}{% if not loop.last %}, {% endif %}{% endfor %}){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:</code>
-        </summary>
-        {{- node.body|html -}}
-    </details>
+    <div class="scroll-x">
+        {% for decorator in node.decorators %}{{ decorator|html }}{% endfor %}
+        <details open>
+            <summary class="code-like">
+                <code>
+                {%- if node.asynchronous %}async {% endif -%}
+    <span class="nobr"><span class="hi-function-def">def</span> <span class="hi-name">{{ node.name|html }}</span>(</span>{% for arg in node.parameters %}&#8203;{{ arg|html }}{% if not loop.last %}, {% endif %}&#8203;{% endfor %}<span class="nobr">){% if node.return_type %} -&gt; {{ node.return_type|html }}{% endif %}:</span></code>
+            </summary>
+            {{- node.body|html -}}
+        </details>
+    </div>
 </section>

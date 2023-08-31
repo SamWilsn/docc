@@ -32,34 +32,36 @@
         {% endfor %}
     </head>
     <body>
-        {% if search_path %}
-        {% include "search.html" %}
-        {% endif %}
-        {% if breadcrumbs %}
-        <div class="row breadcrumbs-row">
-            <div class="col-12 col-3-md col-2-lg"></div>
-            <nav aria-label="breadcrumbs" class="breadcrumbs col">
-                <ul>
-                    {% for path, url in breadcrumbs %}
-                    <li><a href="{{ url }}">
-                        {%- if path.name -%}
-                        {{- path.name -}}
-                        {%- else -%}
-                        .
-                        {%- endif -%}
-                    </a></li>
-                    {% endfor %}
+        <div class="container">
+            {% if search_path %}
+            {% include "search.html" %}
+            {% endif %}
+            {% if breadcrumbs %}
+            <div class="row breadcrumbs-row">
+                <div class="col-12 col-3-md col-2-lg"></div>
+                <nav aria-label="breadcrumbs" class="breadcrumbs">
+                    <ul>
+                        {% for path, url in breadcrumbs %}
+                        <li><a href="{{ url }}">
+                            {%- if path.name -%}
+                            {{- path.name -}}
+                            {%- else -%}
+                            .
+                            {%- endif -%}
+                        </a></li>
+                        {% endfor %}
 
-                    <li>
-                        <span aria-current="page">
-                            {{- output_path.name -}}
-                        </span>
-                    </li>
-                </ul>
-            </nav>
+                        <li>
+                            <span aria-current="page">
+                                {{- output_path.name -}}
+                            </span>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
-        <main id="main-content">
+        <main class="container" id="main-content">
         {{ body }}
         </main>
     </body>
