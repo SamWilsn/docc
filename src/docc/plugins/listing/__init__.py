@@ -53,7 +53,7 @@ class ListingDiscover(Discover):
     """
 
     def __init__(self, config: PluginSettings) -> None:
-        super().__init__(config)
+        pass
 
     def discover(self, known: FrozenSet[T]) -> Iterator["ListingSource"]:
         """

@@ -14,7 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Builders convert Sources into Documents.
+Implementations of `Builder` convert each `Source` into a `Document`.
 """
 
 from abc import ABC, abstractmethod
@@ -30,7 +30,7 @@ from .source import Source
 
 class Builder(AbstractContextManager, ABC):
     """
-    Consumes unprocessed Sources and creates Documents.
+    Consumes unprocessed `Source` instances and creates `Document`s.
     """
 
     @abstractmethod
@@ -38,7 +38,7 @@ class Builder(AbstractContextManager, ABC):
         """
         Create a Builder with the given configuration.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def build(
@@ -49,7 +49,7 @@ class Builder(AbstractContextManager, ABC):
         """
         Consume unprocessed Sources and insert their Documents into processed.
         """
-        pass
+        raise NotImplementedError()
 
     def __exit__(
         self,

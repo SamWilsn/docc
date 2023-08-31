@@ -14,7 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-Forwards to docc.cli when the module is executed directly.
+Forwards to `docc.cli` when the module is executed directly.
 """
 
 from docc.cli import main

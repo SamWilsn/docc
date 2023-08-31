@@ -137,7 +137,6 @@ class SearchBuilder(Builder):
         """
         Create a Builder with the given configuration.
         """
-        super().__init__(config)
 
     def build(
         self,
@@ -220,7 +219,7 @@ class SearchDiscover(Discover):
     """
 
     def __init__(self, settings: PluginSettings) -> None:
-        super().__init__(settings)
+        pass
 
     def discover(self, known: object) -> Iterator[Source]:
         """
@@ -260,7 +259,7 @@ class SearchTransform(Transform):
     """
 
     def __init__(self, settings: PluginSettings) -> None:
-        super().__init__(settings)
+        pass
 
     def transform(self, context: Context) -> None:
         """

@@ -33,7 +33,7 @@ class Source(ABC):
         """
         Path to the Source (if one exists) relative to the project root.
         """
-        pass
+        raise NotImplementedError()
 
     @property
     @abstractmethod
@@ -41,7 +41,7 @@ class Source(ABC):
         """
         Where to write the output from this Source relative to the output path.
         """
-        pass
+        raise NotImplementedError()
 
     def __repr__(self) -> str:
         """

@@ -32,8 +32,6 @@ class PluginError(Exception):
     An error encountered while loading a plugin.
     """
 
-    pass
-
 
 L = TypeVar("L")
 

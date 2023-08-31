@@ -77,7 +77,6 @@ class PythonDiscover(Discover):
     settings: PluginSettings
 
     def __init__(self, config: PluginSettings) -> None:
-        super().__init__(config)
         self.settings = config
 
         paths = config.get("paths", [])

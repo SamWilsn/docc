@@ -172,7 +172,7 @@ class IndexTransform(Transform):
     """
 
     def __init__(self, config: PluginSettings) -> None:
-        super().__init__(config)
+        pass
 
     def transform(self, context: Context) -> None:
         """
