@@ -19,6 +19,6 @@
 {%- elif node.star == "**" -%}
 **
 {%- endif -%}
-{{- node.name|html -}}
+<span class="hi-name">{{- node.name|html -}}</span>
 {%- if node.type_annotation -%}: {{ node.type_annotation|html -}}{%- endif -%}</span>
 {#- TODO: default value -#}

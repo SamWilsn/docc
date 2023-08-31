@@ -175,5 +175,5 @@ def main() -> None:
 
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
-                with open(output_path, "w") as destination:
+                with open(output_path, "w", encoding="utf-8") as destination:
                     document.root.visit(_OutputVisitor(context_, destination))
