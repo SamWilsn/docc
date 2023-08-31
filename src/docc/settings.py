@@ -166,7 +166,11 @@ class Settings:
         try:
             context = self._settings["context"]
         except KeyError:
-            context = []
+            context = [
+                "docc.references.context",
+                "docc.search.context",
+                "docc.html.context",
+            ]
 
         assert isinstance(context, list)
 
@@ -183,7 +187,13 @@ class Settings:
         try:
             discovery = self._settings["discovery"]
         except KeyError:
-            discovery = []
+            discovery = [
+                "docc.search.discover",
+                "docc.html.discover",
+                "docc.python.discover",
+                "docc.listing.discover",
+                "docc.files.discover",
+            ]
 
         assert isinstance(discovery, list)
 
@@ -200,7 +210,13 @@ class Settings:
         try:
             build = self._settings["build"]
         except KeyError:
-            build = []
+            build = [
+                "docc.search.build",
+                "docc.python.build",
+                "docc.files.build",
+                "docc.listing.build",
+                "docc.resources.build",
+            ]
 
         assert isinstance(build, list)
 
@@ -217,7 +233,14 @@ class Settings:
         try:
             transform = self._settings["transform"]
         except KeyError:
-            transform = []
+            transform = [
+                "docc.python.transform",
+                "docc.mistletoe.transform",
+                "docc.verbatim.transform",
+                "docc.references.index",
+                "docc.search.transform",
+                "docc.html.transform",
+            ]
 
         assert isinstance(transform, list)
 

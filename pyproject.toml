@@ -10,42 +10,8 @@ line_length = 79
 [tool.black]
 line-length = 79
 
-[tool.docc]
-context = [
-    "docc.references.context",
-    "docc.search.context",
-    "docc.html.context",
-]
-
-discovery = [
-    "docc.search.discover",
-    "docc.html.discover",
-    "docc.python.discover",
-    "docc.listing.discover",
-    "docc.files.discover",
-]
-
-build = [
-    "docc.search.build",
-    "docc.python.build",
-    "docc.files.build",
-    "docc.listing.build",
-    "docc.resources.build",
-]
-
-transform = [
-    "docc.python.transform",
-    "docc.mistletoe.transform",
-    "docc.verbatim.transform",
-    "docc.references.index",
-    "docc.search.transform",
-    "docc.html.transform",
-]
-
 [tool.docc.plugins."docc.python.discover"]
-paths = [
-    "src",
-]
+paths = [ "src" ]
 
 [tool.docc.output]
 path = "docs"
