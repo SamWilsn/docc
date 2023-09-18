@@ -3,6 +3,7 @@ autoescape
 casefold
 charref
 charrefs
+checkable
 copyfileobj
 ctx
 decl
@@ -58,6 +59,7 @@ strikethrough
 subclasses
 superclass
 tbody
+thead
 this'll
 toml
 tomli

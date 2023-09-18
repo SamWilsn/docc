@@ -24,8 +24,10 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Protocol,
     Sequence,
     Union,
+    runtime_checkable,
 )
 
 import mistletoe as md
@@ -330,6 +332,11 @@ def _render_list_item(
     return tag
 
 
+@runtime_checkable
+class _TableWithHeader(Protocol):
+    header: MarkdownToken
+
+
 def _render_table(
     context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
@@ -337,6 +344,20 @@ def _render_table(
 ) -> html.RenderResult:
     # TODO: mistletoe had a much more complicated implementation.
     table = html.HTMLTag("table")
+    token = node.token
+
+    if isinstance(token, _TableWithHeader):
+        # TODO: The table header should appear in node's `.children`.
+        header_node = MarkdownNode(token.header)
+
+        visitor = html.HTMLVisitor(context)
+        header_node.visit(visitor)
+
+        thead = html.HTMLTag("thead")
+        for node in visitor.root.children:
+            thead.append(node)
+        table.append(thead)
+
     parent.append(table)
     return table
 
