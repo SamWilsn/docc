@@ -44,6 +44,7 @@ pathname2url
 perf
 Pos
 ptag
+qualname
 removeprefix
 renderer
 renderers
