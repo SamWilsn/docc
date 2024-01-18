@@ -236,6 +236,7 @@ class Settings:
             transform = [
                 "docc.python.transform",
                 "docc.mistletoe.transform",
+                "docc.mistletoe.reference",
                 "docc.verbatim.transform",
                 "docc.references.index",
                 "docc.search.transform",

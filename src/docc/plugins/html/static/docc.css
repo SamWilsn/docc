@@ -28,6 +28,10 @@ pre {
     padding: 0;
 }
 
+a > code {
+  text-decoration: underline dotted;
+}
+
 .nobr, .code-like {
     white-space: nowrap;
 }

@@ -37,8 +37,8 @@ from mistletoe.token import Token as MarkdownToken
 from typing_extensions import TypeAlias
 
 from docc.context import Context
-from docc.document import Document, Node, Visit, Visitor
-from docc.plugins import html, python, search
+from docc.document import Document, ListNode, Node, Visit, Visitor
+from docc.plugins import html, python, references, search
 from docc.settings import PluginSettings
 from docc.transform import Transform
 
@@ -134,6 +134,71 @@ class _DocstringVisitor(Visitor):
 
         document = md.Document(node.text)
         new_node = MarkdownNode(document)
+
+        if self.stack:
+            self.stack[-1].replace_child(node, new_node)
+        else:
+            self.root = new_node
+
+
+class ReferenceTransform(Transform):
+    """
+    Replaces markdown link and autolink nodes with [`Reference`] nodes instead.
+
+    [`Reference`]: ref:docc.plugins.references.Reference
+    """
+
+    def __init__(self, config: PluginSettings) -> None:
+        """
+        Create a Transform with the given configuration.
+        """
+
+    def transform(self, context: Context) -> None:
+        """
+        Apply the transformation to the given document.
+        """
+        visitor = _ReferenceVisitor()
+        context[Document].root.visit(visitor)
+        assert visitor.root is not None
+        context[Document].root = visitor.root
+
+
+class _ReferenceVisitor(Visitor):
+    root: Optional[Node]
+    stack: Final[List[Node]]
+
+    def __init__(self) -> None:
+        self.stack = []
+        self.root = None
+
+    def enter(self, node: Node) -> Visit:
+        self.stack.append(node)
+        if self.root is None:
+            self.root = node
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        popped = self.stack.pop()
+        assert node == popped
+
+        if not isinstance(node, MarkdownNode):
+            return
+
+        token = node.token
+        if not isinstance(token, (spans.Link, spans.AutoLink)):
+            return
+
+        ref = token.target.removeprefix("ref:")
+        if ref == token.target:
+            return
+
+        new_node = references.Reference(ref)
+
+        children = list(node.children)
+        if len(children) == 1:
+            new_node.child = children[0]
+        elif len(children) > 1:
+            new_node.child = ListNode(children)
 
         if self.stack:
             self.stack[-1].replace_child(node, new_node)
