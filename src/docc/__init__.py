@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Ethereum Foundation
+# Copyright (C) 2022-2024 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,5 +17,5 @@
 The documentation compiler.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 "Current version of docc"
