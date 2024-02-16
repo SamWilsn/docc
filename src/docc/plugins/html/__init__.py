@@ -77,6 +77,9 @@ else:
 
 
 RenderResult = Optional[Union["HTMLTag", "HTMLRoot"]]
+"""
+Possible output from rendering to HTML.
+"""
 
 
 @dataclass(frozen=True)
@@ -86,7 +89,14 @@ class HTML:
     """
 
     extra_css: Sequence[str]
+    """
+    List of paths to CSS files to include in the final rendered documentation.
+    """
+
     breadcrumbs: bool
+    """
+    Whether to render breadcrumbs (links to parent pages).
+    """
 
 
 class HTMLContext(Provider[HTML]):

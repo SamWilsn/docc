@@ -24,6 +24,7 @@ from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import PurePath
+from textwrap import dedent
 from typing import (
     Dict,
     Final,
@@ -709,6 +710,7 @@ class _TransformVisitor(Visitor):
             assert_never(value)
             raise AssertionError()
 
+        text = dedent(text)
         return nodes.Docstring(text=text)
 
     def _enter_assignment(
