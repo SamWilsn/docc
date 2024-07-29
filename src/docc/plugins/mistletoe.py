@@ -67,6 +67,8 @@ class MarkdownNode(Node, search.Searchable):
             return current
 
         children = getattr(self.token, "children", tuple())
+        if children is None:
+            children = tuple()
         replacement: List[Node] = [MarkdownNode(c) for c in children]
         self._children = replacement
         return replacement
