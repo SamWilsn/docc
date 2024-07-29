@@ -21,7 +21,7 @@ import logging
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from io import StringIO, TextIOBase
-from typing import IO, Iterable, List, Optional, Union
+from typing import IO, Iterable, List, Optional, Tuple, Union
 
 import rich.markup
 import rich.tree
@@ -34,6 +34,8 @@ class Node(ABC):
     """
     Representation of a node in a Document.
     """
+
+    __slots__: Tuple[str, ...] = ()
 
     @property
     @abstractmethod
@@ -144,7 +146,7 @@ class BlankNode(Node):
     A placeholder node with no conent and no children.
     """
 
-    __slots__: Iterable[str] = tuple()
+    __slots__: Tuple[str, ...] = tuple()
 
     @property
     def children(self) -> Iterable[Node]:
