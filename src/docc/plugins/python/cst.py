@@ -912,14 +912,21 @@ class _AnnotationReferenceTransformVisitor(Visitor):
 
         return Visit.TraverseChildren
 
+    def _in_module(self, name: str, module: str) -> bool:
+        module_parts = module.split(".")
+        name_parts = name.split(".")
+
+        try:
+            return name_parts[: len(module_parts)] == module_parts
+        except IndexError:
+            return False
+
     def _make_reference(self, node: CstNode) -> None:
         for name in node.names:
             if name in self.excluded_references:
                 continue
 
-            # TODO: This incorrectly matches `foobar.do_thing` if `foo` is in
-            #       `node.all_modules`.
-            if any(name.startswith(m) for m in node.all_modules):
+            if any(self._in_module(name, m) for m in node.all_modules):
                 reference = Reference(
                     identifier=name,
                     child=node,
