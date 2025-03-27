@@ -464,7 +464,7 @@ class _TranscribeVisitor(VerbatimVisitor):
     document: Final[Document]
     root: Transcribed
     output_stack: List[Node]
-    input_stack: List[Union[Sequence[str], references.Reference]]
+    input_stack: List[Sequence[str] | references.Reference]
 
     def __init__(self, context: Context) -> None:
         super().__init__()

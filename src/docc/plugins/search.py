@@ -67,7 +67,7 @@ class ByReference:
     specifier: Optional[int]
 
 
-Location: TypeAlias = Union[BySource, ByReference]
+Location: TypeAlias = BySource | ByReference
 Content: TypeAlias = Union[str, Mapping[str, Union[str, Sequence[str]]]]
 
 

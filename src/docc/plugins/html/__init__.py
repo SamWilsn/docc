@@ -682,7 +682,7 @@ def _html_filter(
 ) -> Union[markupsafe.Markup, str]:
     ctx = context["context"]
     assert isinstance(ctx, Context)
-    assert isinstance(value, Node)
+    assert isinstance(value, Node), f"expected Node, got {type(value)}"
     visitor = HTMLVisitor(ctx)
     value.visit(visitor)
 

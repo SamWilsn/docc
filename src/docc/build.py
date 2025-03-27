@@ -28,7 +28,7 @@ from .settings import PluginSettings, Settings
 from .source import Source
 
 
-class Builder(AbstractContextManager["Builder"], ABC):
+class Builder(AbstractContextManager["Builder", None], ABC):
     """
     Consumes unprocessed `Source` instances and creates `Document`s.
     """
