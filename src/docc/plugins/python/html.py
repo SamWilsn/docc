@@ -172,3 +172,41 @@ def render_parameter(
     """
     assert isinstance(parameter, nodes.Parameter)
     return _render_template(context, parent, "html/parameter.html", parameter)
+
+
+def render_subscript(
+    context: object,
+    parent: object,
+    subscript: object,
+) -> RenderResult:
+    """
+    Render a python Subscript as HTML.
+    """
+    assert isinstance(subscript, nodes.Subscript)
+    return _render_template(context, parent, "html/subscript.html", subscript)
+
+
+def render_binary_operation(
+    context: object,
+    parent: object,
+    binary: object,
+) -> RenderResult:
+    """
+    Render a python BinaryOperation as HTML.
+    """
+    assert isinstance(binary, nodes.BinaryOperation)
+    return _render_template(
+        context, parent, "html/binary_operation.html", binary
+    )
+
+
+def render_bit_or(
+    context: object,
+    parent: object,
+    bit_or: object,
+) -> RenderResult:
+    """
+    Render a python BitOr as HTML.
+    """
+    assert isinstance(bit_or, nodes.BitOr)
+    return _render_template(context, parent, "html/bit_or.html", bit_or)

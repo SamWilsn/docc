@@ -210,7 +210,7 @@ class _ReferenceVisitor(Visitor):
 
 def _render_strong(
     context: Context,
-    parent: Union[html.HTMLRoot, html.HTMLTag],
+    parent: html.HTMLRoot | html.HTMLTag,
     node: MarkdownNode,
 ) -> html.RenderResult:
     tag = html.HTMLTag("strong")

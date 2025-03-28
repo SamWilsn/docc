@@ -138,8 +138,35 @@ class Type(PythonNode):
     A type, usually used in a PEP 484 annotation.
     """
 
+    child: Node = dataclasses.field(default_factory=BlankNode)
+
+
+@dataclass(repr=False)
+class Subscript(PythonNode):
+    """
+    A subscript expression, of the form `name[...]`.
+    """
+
     name: Node = dataclasses.field(default_factory=BlankNode)
     generics: Node = dataclasses.field(default_factory=BlankNode)
+
+
+@dataclass(repr=False)
+class BinaryOperation(PythonNode):
+    """
+    An operation with two inputs.
+    """
+
+    left: Node = dataclasses.field(default_factory=BlankNode)
+    operator: Node = dataclasses.field(default_factory=BlankNode)
+    right: Node = dataclasses.field(default_factory=BlankNode)
+
+
+@dataclass(repr=False)
+class BitOr(PythonNode):
+    """
+    A bitwise or operation.
+    """
 
 
 @dataclass(repr=False)

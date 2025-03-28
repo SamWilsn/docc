@@ -954,27 +954,28 @@ class _TypeVisitor(Visitor):
 
         cst_node = node.cst_node
         if isinstance(cst_node, cst.Name):
-            self.type.name = self.root
+            self.type.child = self.root
         elif isinstance(cst_node, cst.SimpleString):
-            self.type.name = self.root
+            self.type.child = self.root
         elif isinstance(cst_node, cst.Ellipsis):
             # TODO: check this.
-            self.type.name = nodes.Name(name="...")
+            self.type.child = nodes.Name(name="...")
         elif isinstance(cst_node, cst.Attribute):
             if not node.names:
                 raise NotImplementedError("attributes without full names")
             names = sorted(node.names)
             # TODO: While accurate, this doesn't match the exact text from the
             #       source file.
-            self.type.name = nodes.Name(names[0], names[0])
+            self.type.child = nodes.Name(names[0], names[0])
         elif isinstance(cst_node, cst.Subscript):
             arguments = []
             generics = nodes.List(elements=ListNode(arguments))
-            self.type.generics = generics
             type_ = nodes.Type()
+
+            self.type.child = nodes.Subscript(name=type_, generics=generics)
+
             value = node.find_child(cst_node.value)
             value.visit(_TypeVisitor(value, type_))
-            self.type.name = type_
 
             for cst_element in cst_node.slice:
                 # TODO: This traversal assumes no new nodes were added between
@@ -999,15 +1000,17 @@ class _TypeVisitor(Visitor):
                 arguments.append(generic)
         elif isinstance(cst_node, (cst.List, cst.Tuple)):
             # For example: Callable[[<List>], None], Tuple[()]
+            subscript = nodes.Subscript()
+            self.type.child = subscript
             elements = []
 
             # TODO: This is a bit of a hack, since the argument list of a
             #       Callable isn't a type of its own.
 
             if isinstance(cst_node, cst.List):
-                self.type.generics = nodes.List(elements=ListNode(elements))
+                subscript.generics = nodes.List(elements=ListNode(elements))
             elif isinstance(cst_node, cst.Tuple):
-                self.type.generics = nodes.Tuple(elements=ListNode(elements))
+                subscript.generics = nodes.Tuple(elements=ListNode(elements))
             else:
                 raise NotImplementedError()
 
@@ -1024,6 +1027,9 @@ class _TypeVisitor(Visitor):
                 type_ = nodes.Type()
                 value.visit(_TypeVisitor(value, type_))
                 elements.append(type_)
+        elif isinstance(cst_node, cst.BinaryOperation):
+            assert isinstance(node, CstNode)
+            self._binary_operation(node, cst_node)
         else:
             raise Exception(str(node) + str(cst_node))
 
@@ -1031,6 +1037,25 @@ class _TypeVisitor(Visitor):
 
     def exit(self, node: Node) -> None:
         pass
+
+    def _binary_operation(
+        self, node: CstNode, cst_node: cst.BinaryOperation
+    ) -> None:
+        if not isinstance(cst_node.operator, cst.BitOr):
+            raise NotImplementedError(f"binary operation {cst_node.operator}")
+
+        left_node = nodes.Type()
+        right_node = nodes.Type()
+
+        self.type.child = nodes.BinaryOperation(
+            left=left_node, right=right_node, operator=nodes.BitOr()
+        )
+
+        left_child = node.find_child(cst_node.left)
+        left_child.visit(_TypeVisitor(left_child, left_node))
+
+        right_child = node.find_child(cst_node.right)
+        right_child.visit(_TypeVisitor(right_child, right_node))
 
 
 class _AnnotationTransformVisitor(Visitor):
