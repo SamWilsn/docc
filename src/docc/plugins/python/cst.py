@@ -560,8 +560,15 @@ class _TransformVisitor(Visitor):
         self.old_stack.append(class_context)
         self.old_stack.append(body_context)
 
-        for cst_statement in cst_node.body.body:
-            self.old_stack[-1].child_offset += 1
+        for idx, cst_statement in enumerate(cst_node.body.body):
+            self.old_stack[-1].child_offset = idx
+            if (
+                isinstance(cst_statement, cst.SimpleStatementLine)
+                and len(cst_statement.body) == 1
+                and isinstance(cst_statement.body[0], cst.Expr)
+                and isinstance(cst_statement.body[0].value, cst.SimpleString)
+            ):
+                continue
             statement = body.find_child(cst_statement)
             statement.visit(self)
 
@@ -676,7 +683,7 @@ class _TransformVisitor(Visitor):
 
         try:
             line_parent_context = self.old_stack[-2]
-            sibling_index = line_parent_context.child_offset + 1
+            sibling_index = line_parent_context.child_offset + 2
             sibling = line_parent_context.node.children[sibling_index]
         except IndexError:
             return None
