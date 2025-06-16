@@ -683,7 +683,10 @@ class _TransformVisitor(Visitor):
 
         try:
             line_parent_context = self.old_stack[-2]
-            sibling_index = line_parent_context.child_offset + 2
+            if isinstance(line_parent_context.node.cst_node, cst.Module):
+                sibling_index = line_parent_context.child_offset + 1
+            else:
+                sibling_index = line_parent_context.child_offset + 2
             sibling = line_parent_context.node.children[sibling_index]
         except IndexError:
             return None
