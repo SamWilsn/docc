@@ -74,7 +74,16 @@ class PythonDiscover(Discover):
     """
 
     paths: Sequence[str]
+    """
+    File system paths to search for Python files.
+    """
+
     excluded_paths: Final[Sequence[PurePath]]
+    """
+    File system paths to exclude from the search. Excluding a parent directory
+    excludes all children.
+    """
+
     settings: PluginSettings
 
     def __init__(self, config: PluginSettings) -> None:
