@@ -17,7 +17,12 @@
 <section>
     <h3>
         {% for name in node.names %}
-        {{ name|html -}}
+        <span class="header-anchor">
+            {% reference name.full_name %}
+                {{ name|html -}}
+                <b class="link-logo">¶</b>
+            {% endreference %}
+        </span>
         {%- if not loop.last %}, {% endif %}
         {% endfor %}
     </h3>

@@ -292,3 +292,27 @@ details[open] > summary::after {
 .hi-call > .hi-attribute > .hi-name:last-child {
     font-weight: bold;
 }
+
+.header-anchor a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.header-anchor a:visited {
+    color: inherit;
+}
+
+.header-anchor .link-logo {
+    visibility: hidden;
+    margin-left: 0.2em;
+    text-decoration: none;
+    color: #888;
+    font-weight: normal;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.header-anchor:hover .link-logo,
+.header-anchor:focus-within .link-logo {
+    visibility: visible;
+}
