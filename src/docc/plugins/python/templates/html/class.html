@@ -15,7 +15,14 @@
  # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -#}
 <section class="class">
-    <h3>{{ node.name|html }}</h3>
+    <h3>
+        <span class="header-anchor">
+            {% reference node.name.full_name %}
+                {{ node.name|html }}
+                <b class="link-logo">¶</b>
+            {% endreference %}
+        </span>
+    </h3>
 
     {% if node.docstring %}
     <div class="docstring">
