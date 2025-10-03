@@ -61,6 +61,19 @@ table.verbatim > tbody > tr > th {
     padding: 0 0.5ex;
 }
 
+/* Fix for issue #17: td inside del/ins should have colored backgrounds */
+del > td,
+del td {
+    background-color: #ffeef0;
+    text-decoration: line-through;
+}
+
+ins > td,
+ins td {
+    background-color: #e6ffed;
+    text-decoration: none;
+}
+
 section section {
     padding-left: 1em;
     margin-top: 2em;
