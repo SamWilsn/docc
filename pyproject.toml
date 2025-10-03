@@ -15,6 +15,3 @@ paths = [ "src" ]
 
 [tool.docc.output]
 path = "docs"
-
-[tool.docc.output]
-path = "<where to put rendered documentation>"
