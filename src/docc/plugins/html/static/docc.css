@@ -328,4 +328,5 @@ details[open] > summary::after {
 .header-anchor:hover .link-logo,
 .header-anchor:focus-within .link-logo {
     visibility: visible;
+    
 }

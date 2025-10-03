@@ -16,8 +16,5 @@ paths = [ "src" ]
 [tool.docc.output]
 path = "docs"
 
-[tool.docc.plugins."docc.python.discover"]
-paths = [ "<path to Python source>" ]
-
 [tool.docc.output]
 path = "<where to put rendered documentation>"
