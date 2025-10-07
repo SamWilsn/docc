@@ -1,0 +1,67 @@
+Metadata-Version: 2.4
+Name: docc
+Version: 0.3.1
+Summary: Python code documentation compiler
+Home-page: https://github.com/SamWilsn/docc
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE.md
+Requires-Dist: libcst<2,>=1.0.1
+Requires-Dist: mistletoe<2,>=1.2.1
+Requires-Dist: importlib-resources<7,>=6.0.1
+Requires-Dist: tomli<3,>=2.0.1
+Requires-Dist: rich<14,>=13.5.2
+Requires-Dist: Jinja2<4,>=3.1.2
+Requires-Dist: inflection<0.6,>=0.5.1
+Requires-Dist: typing-extensions<5,>=4.7.1
+Provides-Extra: lint
+Requires-Dist: isort<6,>=5.12.0; extra == "lint"
+Requires-Dist: pyre-check<0.10,>=0.9.18; extra == "lint"
+Requires-Dist: click<8.2.0,>=8.0; extra == "lint"
+Requires-Dist: types-setuptools>=68.1; extra == "lint"
+Requires-Dist: black<24,>=23.7.0; extra == "lint"
+Requires-Dist: flake8-spellcheck<0.29,>=0.28; extra == "lint"
+Requires-Dist: flake8-docstrings<2,>=1.7; extra == "lint"
+Requires-Dist: flake8-bugbear<24.0.0,>=23.7.10; extra == "lint"
+Requires-Dist: flake8<7,>=6.1.0; extra == "lint"
+Dynamic: license-file
+
+docc
+====
+
+[![documentation badge][docs-badge]][docs]
+
+The documentation compiler.
+
+## Python Quickstart
+
+### Installing
+
+```bash
+pip install docc
+```
+
+### Configuring
+
+Add the following to your [`pyproject.toml`]:
+
+```toml
+[tool.docc.plugins."docc.python.discover"]
+paths = [ "<path to Python source>" ]
+
+[tool.docc.output]
+path = "<where to put rendered documentation>"
+```
+
+### Building
+
+Finally, to generate the documentation:
+
+```bash
+docc
+```
+
+[docs-badge]: https://github.com/SamWilsn/docc/actions/workflows/gh-pages.yaml/badge.svg?branch=master
+[docs]: https://samwilsn.github.io/docc/
+[`pyproject.toml`]: https://packaging.python.org/en/latest/specifications/declaring-project-metadata/#declaring-project-metadata
