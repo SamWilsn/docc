@@ -16,6 +16,7 @@
 """
 Markdown support for docc.
 """
+
 from lib2to3.fixes.fix_input import context
 from mistletoe import block_token as blocks
 from mistletoe import span_token as spans
@@ -43,6 +44,7 @@ from docc.document import Document, ListNode, Node, Visit, Visitor
 from docc.plugins import html, python, references, search
 from docc.settings import PluginSettings
 from docc.transform import Transform
+from dataclasses import dataclass, field
 
 
 class MarkdownNode(Node, search.Searchable):
@@ -93,6 +95,53 @@ class MarkdownNode(Node, search.Searchable):
         otherwise.
         """
         return False
+@dataclass
+class FootnoteRegistry:
+    """
+    Tracks footnotes during document rendering.
+    """
+    definitions: dict[str, MarkdownNode] = field(default_factory=dict)
+    references: dict[str, int] = field(default_factory=dict)
+    citation_counts: dict[str, int] = field(default_factory=dict)
+    next_number: int = 1
+    
+    def register_reference(self, label: str) -> tuple[int, int]:
+        """Register a footnote reference and return (number, citation_index)."""
+        if label not in self.references:
+            self.references[label] = self.next_number
+            self.next_number += 1
+            self.citation_counts[label] = 0
+        
+        self.citation_counts[label] += 1
+        return self.references[label], self.citation_counts[label]
+    
+    def register_definition(self, label: str, node: MarkdownNode) -> None:
+        """Register a footnote definition."""
+        self.definitions[label] = node
+    
+    def has_definitions(self) -> bool:
+        """Check if any footnote definitions exist."""
+        return bool(self.definitions)
+    
+    def get_ordered_definitions(self) -> list[tuple[str, int, MarkdownNode]]:
+        """Get definitions ordered by number."""
+        result = []
+        for label, node in self.definitions.items():
+            number = self.references.get(label)
+            if number is not None:
+                result.append((label, number, node))
+        result.sort(key=lambda x: x[1])
+        return result
+
+
+def _get_footnote_registry(context: Context) -> FootnoteRegistry:
+    """Get or create the footnote registry for the current context."""
+    registry_key = "__footnote_registry__"
+    
+    if not hasattr(context, registry_key):
+        setattr(context, registry_key, FootnoteRegistry())
+    
+    return getattr(context, registry_key)
 
 
 class DocstringTransform(Transform):
@@ -521,27 +570,17 @@ def _render_document(
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
+    """Render a document, including footnotes at the end."""
+    # Reset footnote registry for new document
+    registry_key = "__footnote_registry__"
+    if hasattr(context, registry_key):
+        delattr(context, registry_key)
+    
     token = node.token
     assert isinstance(token, blocks.Document)
     tag = html.HTMLTag("div", {"class": "markdown"})
     parent.append(tag)
-    
-    
-    
-    # Render children first
-    visitor = html.HTMLVisitor(context)
-    for child in node.children:
-        child.visit(visitor)
-    
-    # Add rendered children to tag
-    for child_node in visitor.root.children:
-        tag.append(child_node)
-    
-    # Render footnotes at the end
-    _render_footnote_definitions(context, tag) # type: ignore
-    
-    return None  # Already handled children
-
+    return tag
 
 _RENDER_FUNC: TypeAlias = Callable[
     [Context, Union[html.HTMLRoot, html.HTMLTag], MarkdownNode],
@@ -574,8 +613,8 @@ _RENDERERS: Mapping[str, _RENDER_FUNC] = {
     "Document": _render_document,
     "HTMLBlock": _render_html_block,
     "HTMLSpan": _render_html_span,
-    "FootnoteRef": _render_footnote_ref, # type: ignore
-    "FootnoteEntry": _render_footnote_entry, # type: ignore
+    "FootnoteRef": _render_footnote_ref, # pyright: ignore[reportUndefinedVariable]
+    "FootnoteEntry": _render_footnote_entry, # pyright: ignore[reportUndefinedVariable]
 }
 
 
@@ -584,14 +623,17 @@ def render_html(
     parent: object,
     node: object,
 ) -> html.RenderResult:
-    """
-    Render a markdown node as HTML.
-    """
+    """Render a markdown node as HTML."""
     assert isinstance(context, Context)
     assert isinstance(parent, (html.HTMLRoot, html.HTMLTag))
     assert isinstance(node, MarkdownNode)
 
-    return _RENDERERS[node.token.__class__.__name__](context, parent, node)
+    result = _RENDERERS[node.token.__class__.__name__](context, parent, node)
+    if isinstance(node.token, blocks.Document) and isinstance(result, html.HTMLTag):
+
+        setattr(result, '__needs_footnotes__', (context, result))
+    
+    return result
 
 
 class _SearchVisitor(Visitor):
