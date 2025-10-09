@@ -16,7 +16,9 @@
 """
 Markdown support for docc.
 """
-
+from lib2to3.fixes.fix_input import context
+from mistletoe import block_token as blocks
+from mistletoe import span_token as spans
 from typing import (
     Callable,
     Final,
@@ -509,18 +511,36 @@ def _render_html_block(
         parent.append(child)
     return None
 
+# Reset footnote registry for new document
+registry_key = "__footnote_registry__"
+if hasattr(context, registry_key):
+    delattr(context, registry_key)
 
 def _render_document(
     context: Context,
     parent: Union[html.HTMLRoot, html.HTMLTag],
     node: MarkdownNode,
 ) -> html.RenderResult:
-    # TODO: footnotes?
     token = node.token
     assert isinstance(token, blocks.Document)
     tag = html.HTMLTag("div", {"class": "markdown"})
     parent.append(tag)
-    return tag
+    
+    
+    
+    # Render children first
+    visitor = html.HTMLVisitor(context)
+    for child in node.children:
+        child.visit(visitor)
+    
+    # Add rendered children to tag
+    for child_node in visitor.root.children:
+        tag.append(child_node)
+    
+    # Render footnotes at the end
+    _render_footnote_definitions(context, tag) # type: ignore
+    
+    return None  # Already handled children
 
 
 _RENDER_FUNC: TypeAlias = Callable[
@@ -554,6 +574,8 @@ _RENDERERS: Mapping[str, _RENDER_FUNC] = {
     "Document": _render_document,
     "HTMLBlock": _render_html_block,
     "HTMLSpan": _render_html_span,
+    "FootnoteRef": _render_footnote_ref, # type: ignore
+    "FootnoteEntry": _render_footnote_entry, # type: ignore
 }
 
 
