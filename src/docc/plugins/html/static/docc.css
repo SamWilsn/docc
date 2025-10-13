@@ -61,7 +61,7 @@ table.verbatim > tbody > tr > th {
     padding: 0 0.5ex;
 }
 
-/* Fix for issue #17: td inside del/ins should have colored backgrounds */
+/* Colored backgrounds for deleted and inserted table cells */
 del > td,
 del td {
     background-color: #ffeef0;
