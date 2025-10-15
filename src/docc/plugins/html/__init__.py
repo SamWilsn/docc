@@ -17,7 +17,7 @@
 Plugin that renders to HTML.
 """
 
-
+import warnings
 import html.parser
 import sys
 import xml.etree.ElementTree as ET
@@ -831,24 +831,40 @@ _NON_TRANSPARENT_ELEMENTS = frozenset({
 })
 
 
+class _NonTransparentElementVisitor(Visitor):
+    """
+    Visitor that checks if a node or any of its descendants contains HTML elements
+    that cannot be descendants of an <a> tag.
+    """
+    
+    def __init__(self) -> None:
+        self.found_non_transparent = False
+    
+    def enter(self, node: Node) -> Visit:
+        """
+        Check if the current node is a non-transparent element.
+        """
+        if isinstance(node, HTMLTag):
+            if node.tag_name.lower() in _NON_TRANSPARENT_ELEMENTS:
+                self.found_non_transparent = True
+                return Visit.SkipChildren  # No need to check children if we found one
+        return Visit.TraverseChildren
+    
+    def exit(self, node: Node) -> None:
+        """
+        Called after visiting a node and its children.
+        """
+        pass
+
+
 def _contains_non_transparent_elements(node: Node) -> bool:
     """
     Check if a node or any of its descendants contains HTML elements
     that cannot be descendants of an <a> tag.
     """
-    if isinstance(node, HTMLTag):
-        if node.tag_name.lower() in _NON_TRANSPARENT_ELEMENTS:
-            return True
-        # Check children recursively
-        for child in node.children:
-            if _contains_non_transparent_elements(child):
-                return True
-    elif hasattr(node, 'children'):
-        # For other node types with children, check recursively
-        for child in node.children:
-            if _contains_non_transparent_elements(child):
-                return True
-    return False
+    visitor = _NonTransparentElementVisitor()
+    node.visit(visitor)
+    return visitor.found_non_transparent
 
 
 
@@ -876,7 +892,7 @@ def _handle_non_transparent_reference(
         return None
     
     # If inversion failed, render without the link and warn
-    import warnings
+    
     warnings.warn(
         f"Reference '{reference.identifier}' contains non-transparent HTML elements "
         f"that cannot be wrapped in an <a> tag. Rendering without link.",
@@ -906,21 +922,24 @@ def _find_anchor_insertion_point(node: Node, href: str) -> Optional[Node]:
         # For HTML tags, try to find a suitable child to wrap with an anchor
         if node.tag_name.lower() in _NON_TRANSPARENT_ELEMENTS:
             # This is a non-transparent element, look at its children
-            for i, child in enumerate(node.children):
+            for child in node.children:
                 insertion_point = _find_anchor_insertion_point(child, href)
                 if insertion_point is not None:
                     # Found a suitable insertion point, create a modified version
                     new_node = HTMLTag(node.tag_name, node.attributes.copy())
-                    for j, original_child in enumerate(node.children):
-                        if j == i:
-                            # Replace this child with the modified version
-                            new_node.append(insertion_point)
-                        else:
-                            new_node.append(original_child)
+                    # Copy all children to the new node
+                    for original_child in node.children:
+                        new_node.append(original_child)
+                    # Replace the specific child with the modified version
+                    new_node.replace_child(child, insertion_point)
                     return new_node
             return None
         else:
-            # This element can contain an anchor, wrap it
+            # This element can contain an anchor, but check if it's already an anchor
+            if node.tag_name.lower() == "a":
+                # Already an anchor tag, don't wrap it
+                return node
+            # Wrap it in a new anchor
             anchor = HTMLTag("a", {"href": href})
             anchor.append(node)
             return anchor
