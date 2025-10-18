@@ -918,12 +918,24 @@ def _find_anchor_insertion_point(node: Node, href: str) -> Optional[Node]:
     contain an anchor tag, and creates a modified version of the node
     with the anchor inserted.
     """
+    return _find_anchor_insertion_point_recursive(node, href, False)
+
+
+def _find_anchor_insertion_point_recursive(node: Node, href: str, already_has_anchor: bool) -> Optional[Node]:
+    """
+    Recursive helper that tracks whether we're already inside an anchor tag.
+    """
     if isinstance(node, HTMLTag):
+        # Check if we're already inside an anchor tag
+        if node.tag_name.lower() == "a":
+            # Already an anchor tag, don't create nested anchors
+            return node if already_has_anchor else None
+        
         # For HTML tags, try to find a suitable child to wrap with an anchor
         if node.tag_name.lower() in _NON_TRANSPARENT_ELEMENTS:
             # This is a non-transparent element, look at its children
             for child in node.children:
-                insertion_point = _find_anchor_insertion_point(child, href)
+                insertion_point = _find_anchor_insertion_point_recursive(child, href, already_has_anchor)
                 if insertion_point is not None:
                     # Found a suitable insertion point, create a modified version
                     new_node = HTMLTag(node.tag_name, node.attributes.copy())
@@ -935,32 +947,28 @@ def _find_anchor_insertion_point(node: Node, href: str) -> Optional[Node]:
                     return new_node
             return None
         else:
-            # This element can contain an anchor, but check if it's already an anchor
-            if node.tag_name.lower() == "a":
-                # Already an anchor tag, don't wrap it
-                return node
+            # This element can contain an anchor
+            if already_has_anchor:
+                # Don't create nested anchors
+                return None
             # Wrap it in a new anchor
             anchor = HTMLTag("a", {"href": href})
             anchor.append(node)
             return anchor
     elif isinstance(node, TextNode):
-        # Text nodes can be wrapped in an anchor
+        # Text nodes can be wrapped in an anchor, but only if we're not already inside one
+        if already_has_anchor:
+            return None
         anchor = HTMLTag("a", {"href": href})
         anchor.append(node)
         return anchor
     elif hasattr(node, 'children'):
         # For other node types with children, try to find a suitable child
-        for i, child in enumerate(node.children):
-            insertion_point = _find_anchor_insertion_point(child, href)
+        for child in node.children:
+            insertion_point = _find_anchor_insertion_point_recursive(child, href, already_has_anchor)
             if insertion_point is not None:
-                # Create a copy of the node with the modified child
-                # This is a simplified approach - in practice, you might need
-                # to handle different node types more specifically
-                new_children = list(node.children)
-                new_children[i] = insertion_point
-                # Create a new instance with modified children
-                # Note: This assumes the node has a way to create a copy
-                # For now, we'll return None to fall back to the warning approach
+                # Found a suitable insertion point, but we can't create a copy
+                # of arbitrary node types, so return None to fall back to warning
                 return None
     return None
 
