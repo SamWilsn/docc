@@ -54,6 +54,7 @@ rvalue
 setext
 setitem
 src
+stacklevel
 starttag
 stmt
 strikethrough

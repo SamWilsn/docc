@@ -17,9 +17,9 @@
 Plugin that renders to HTML.
 """
 
-import warnings
 import html.parser
 import sys
+import warnings
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from io import StringIO, TextIOBase
@@ -822,24 +822,56 @@ def references_definition(
     return None
 
 
-_NON_TRANSPARENT_ELEMENTS = frozenset({
-    "tr", "td", "th", "tbody", "thead", "tfoot", "col", "colgroup",
-    "caption", "table", "form", "fieldset", "legend", "button", "input",
-    "select", "textarea", "label", "details", "summary", "dialog",
-    "menu", "menuitem", "iframe", "object", "embed", "video", "audio",
-    "source", "track", "canvas", "map", "area", "svg", "math"
-})
+_NON_TRANSPARENT_ELEMENTS: FrozenSet[str] = frozenset(
+    {
+        "tr",
+        "td",
+        "th",
+        "tbody",
+        "thead",
+        "tfoot",
+        "col",
+        "colgroup",
+        "caption",
+        "table",
+        "form",
+        "fieldset",
+        "legend",
+        "button",
+        "input",
+        "select",
+        "textarea",
+        "label",
+        "details",
+        "summary",
+        "dialog",
+        "menu",
+        "menuitem",
+        "iframe",
+        "object",
+        "embed",
+        "video",
+        "audio",
+        "source",
+        "track",
+        "canvas",
+        "map",
+        "area",
+        "svg",
+        "math",
+    }
+)
 
 
 class _NonTransparentElementVisitor(Visitor):
     """
-    Visitor that checks if a node or any of its descendants contains HTML elements
-    that cannot be descendants of an <a> tag.
+    Visitor that checks if a node or any of its descendants contains HTML
+    elements that cannot be descendants of an `<a>` tag.
     """
-    
+
     def __init__(self) -> None:
         self.found_non_transparent = False
-    
+
     def enter(self, node: Node) -> Visit:
         """
         Check if the current node is a non-transparent element.
@@ -847,9 +879,11 @@ class _NonTransparentElementVisitor(Visitor):
         if isinstance(node, HTMLTag):
             if node.tag_name.lower() in _NON_TRANSPARENT_ELEMENTS:
                 self.found_non_transparent = True
-                return Visit.SkipChildren  # No need to check children if we found one
+                return (
+                    Visit.SkipChildren
+                )  # No need to check children if we found one
         return Visit.TraverseChildren
-    
+
     def exit(self, node: Node) -> None:
         """
         Called after visiting a node and its children.
@@ -867,8 +901,6 @@ def _contains_non_transparent_elements(node: Node) -> bool:
     return visitor.found_non_transparent
 
 
-
-
 def _handle_non_transparent_reference(
     context: Context,
     parent: Union[HTMLRoot, HTMLTag],
@@ -876,44 +908,63 @@ def _handle_non_transparent_reference(
 ) -> RenderResult:
     """
     Handle references that contain non-transparent HTML elements.
-    
+
     Strategy: Try to invert the structure when possible, otherwise
     render without the link and warn the user.
     """
-    # Try to invert the structure (e.g., <a><tr><td>foo</td></tr></a> -> <tr><td><a>foo</a></td></tr>)
+    # Try to invert the structure. For example:
+    #
+    # ```html
+    # <a>
+    #     <tr>
+    #         <td>foo</td>
+    #     </tr>
+    # </a>
+    # ```
+    #
+    # Should become:
+    #
+    # ```html
+    # <tr>
+    #     <td>
+    #         <a>foo</a>
+    #     </td>
+    # </tr>
     inverted_content = _try_invert_reference_structure(context, reference)
     if inverted_content is not None:
         # Successfully inverted, render the inverted structure
         visitor = HTMLVisitor(context)
         inverted_content.visit(visitor)
-        
+
         for child in visitor.root.children:
             parent.append(child)
         return None
-    
+
     # If inversion failed, render without the link and warn
-    
+
     warnings.warn(
-        f"Reference '{reference.identifier}' contains non-transparent HTML elements "
-        f"that cannot be wrapped in an <a> tag. Rendering without link.",
+        f"Reference `{reference.identifier}` contains non-transparent HTML "
+        "elements that cannot be wrapped in an <a> tag. Rendering without "
+        "link.",
         UserWarning,
-        stacklevel=2
+        stacklevel=2,
     )
-    
+
     # Render the child content normally without the link
     visitor = HTMLVisitor(context)
     reference.child.visit(visitor)
-    
+
     # Append all rendered children to the parent
     for child in visitor.root.children:
         parent.append(child)
-    
+
     return None
+
 
 def _find_anchor_insertion_point(node: Node, href: str) -> Optional[Node]:
     """
     Find a suitable place to insert an anchor tag within the node structure.
-    
+
     This function looks for text nodes or simple HTML elements that can
     contain an anchor tag, and creates a modified version of the node
     with the anchor inserted.
@@ -921,7 +972,9 @@ def _find_anchor_insertion_point(node: Node, href: str) -> Optional[Node]:
     return _find_anchor_insertion_point_recursive(node, href, False)
 
 
-def _find_anchor_insertion_point_recursive(node: Node, href: str, already_has_anchor: bool) -> Optional[Node]:
+def _find_anchor_insertion_point_recursive(
+    node: Node, href: str, already_has_anchor: bool
+) -> Optional[Node]:
     """
     Recursive helper that tracks whether we're already inside an anchor tag.
     """
@@ -930,17 +983,20 @@ def _find_anchor_insertion_point_recursive(node: Node, href: str, already_has_an
         if node.tag_name.lower() == "a":
             # Already an anchor tag, don't create nested anchors
             return node if already_has_anchor else None
-        
+
         # For HTML tags, try to find a suitable child to wrap with an anchor
         if node.tag_name.lower() in _NON_TRANSPARENT_ELEMENTS:
             # This is a non-transparent element, look at its children
             for child in node.children:
-                insertion_point = _find_anchor_insertion_point_recursive(child, href, already_has_anchor)
+                insertion_point = _find_anchor_insertion_point_recursive(
+                    child, href, already_has_anchor
+                )
                 if insertion_point is not None:
-                    # Found a suitable insertion point, create a modified version
+                    # Found an insertion point, create a modified version.
                     new_node = HTMLTag(node.tag_name, node.attributes.copy())
                     # Copy all children to the new node
                     for original_child in node.children:
+                        assert isinstance(original_child, (HTMLTag, TextNode))
                         new_node.append(original_child)
                     # Replace the specific child with the modified version
                     new_node.replace_child(child, insertion_point)
@@ -956,33 +1012,36 @@ def _find_anchor_insertion_point_recursive(node: Node, href: str, already_has_an
             anchor.append(node)
             return anchor
     elif isinstance(node, TextNode):
-        # Text nodes can be wrapped in an anchor, but only if we're not already inside one
+        # Text nodes can be wrapped in an anchor, but only if we're not already
+        # inside one
         if already_has_anchor:
             return None
         anchor = HTMLTag("a", {"href": href})
         anchor.append(node)
         return anchor
-    elif hasattr(node, 'children'):
+    elif hasattr(node, "children"):
         # For other node types with children, try to find a suitable child
         for child in node.children:
-            insertion_point = _find_anchor_insertion_point_recursive(child, href, already_has_anchor)
+            insertion_point = _find_anchor_insertion_point_recursive(
+                child, href, already_has_anchor
+            )
             if insertion_point is not None:
                 # Found a suitable insertion point, but we can't create a copy
-                # of arbitrary node types, so return None to fall back to warning
+                # of arbitrary node types, so return None to fall back to
+                # warning
                 return None
     return None
 
 
 def _try_invert_reference_structure(
-    context: Context, 
-    reference: references.Reference
+    context: Context, reference: references.Reference
 ) -> Optional[Node]:
     """
     Try to invert the reference structure to make it HTML-valid.
-    
+
     For example, if we have a reference with a table row containing a cell,
     we try to move the link inside the cell instead of wrapping the row.
-    
+
     Returns the inverted structure if successful, None otherwise.
     """
     # Get the anchor tag attributes from render_reference
@@ -993,7 +1052,7 @@ def _try_invert_reference_structure(
             return None
     except Exception:
         return None
-    
+
     # Try to find a suitable place to put the anchor tag
     return _find_anchor_insertion_point(reference.child, href)
 
@@ -1010,9 +1069,7 @@ def references_reference(
     assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(reference, references.Reference)
 
-    
     if not reference.child:
-
         anchor = render_reference(context, reference)
         parent.append(anchor)
         anchor.append(TextNode(reference.identifier))
@@ -1020,12 +1077,11 @@ def references_reference(
 
     if _contains_non_transparent_elements(reference.child):
         return _handle_non_transparent_reference(context, parent, reference)
-    
+
     # Standard case: child content can be wrapped in an anchor
     anchor = render_reference(context, reference)
     parent.append(anchor)
     return anchor
-
 
 
 def list_node(
