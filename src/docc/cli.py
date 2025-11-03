@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Ethereum Foundation
+# Copyright (C) 2022-2025 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ from contextlib import ExitStack
 from io import TextIOBase
 from pathlib import Path
 from shutil import rmtree
-from typing import Dict, Set, Type
+from typing import Dict, Sequence, Set, Type
 
 from . import build, context, discover, transform
 from .context import Context
@@ -53,7 +53,7 @@ class _OutputVisitor(Visitor):
         pass
 
 
-def main() -> None:
+def main(command_line: Sequence[str] | None = None) -> None:
     """
     Entry-point for the command line tool.
     """
@@ -68,7 +68,7 @@ def main() -> None:
         "--output", help="The directory to write documentation to."
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(command_line)
     settings = Settings(Path.cwd())
 
     if args.output is None:
