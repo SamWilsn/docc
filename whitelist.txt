@@ -35,6 +35,7 @@ lvalue
 lvalues
 mailto
 markupsafe
+matcher
 merchantability
 metaclass
 modulefinder

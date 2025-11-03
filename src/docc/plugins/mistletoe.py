@@ -92,6 +92,12 @@ class MarkdownNode(Node, search.Searchable):
         """
         return False
 
+    def __repr__(self) -> str:
+        """
+        Textual representation of this instance.
+        """
+        return type(self).__name__ + f"({type(self.token).__name__}(...))"
+
 
 class DocstringTransform(Transform):
     """
