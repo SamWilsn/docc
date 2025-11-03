@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from itertools import chain, islice
 from pathlib import Path, PurePath
-from typing import Any, Dict, Iterator, Optional, Sequence
+from typing import Any, Dict, Iterator, Optional, Sequence, Type, TypeVar
 
 import tomli
 
@@ -94,6 +94,9 @@ class Output:
     path: Optional[Path]
 
 
+T = TypeVar("T", bound="Settings")
+
+
 class Settings:
     """
     Handles loading settings for generating documentation.
@@ -103,32 +106,15 @@ class Settings:
     _root: Path
     output: Output
 
-    def __init__(self, path: Path) -> None:
-        """
-        Load the settings in the nearest configuration file to path.
-        """
-        settings_bytes = None
-
-        search_directories = islice(chain([path], path.parents), MAX_DEPTH)
-
-        for current_directory in search_directories:
-            settings_file = current_directory / FILE_NAME
-            try:
-                settings_bytes = settings_file.read_bytes()
-                self._root = settings_file.parent
-                break
-            except FileNotFoundError:
-                pass
-
-        if settings_bytes is None:
-            raise SettingsError(
-                f"could not find {FILE_NAME} (max depth: {MAX_DEPTH})"
-            )
-
-        settings_toml = tomli.load(BytesIO(settings_bytes))
+    def __init__(self, root: Path, settings: Dict[str, object]) -> None:
+        self._root = root
 
         try:
-            self._settings = settings_toml["tool"]["docc"]
+            tool = settings["tool"]
+            if not isinstance(tool, dict):
+                raise TypeError("`settings.tool` must be a dict")
+
+            self._settings = tool["docc"]
         except KeyError:
             # TODO: Come up with some defaults.
             self._settings = {}
@@ -141,6 +127,33 @@ class Settings:
         self.output = Output(
             path=output_path,
         )
+
+    @classmethod
+    def from_file(class_: Type[T], path: Path) -> T:
+        """
+        Load the settings in the nearest configuration file to path.
+        """
+        settings_bytes = None
+        root = None
+
+        search_directories = islice(chain([path], path.parents), MAX_DEPTH)
+
+        for current_directory in search_directories:
+            settings_file = current_directory / FILE_NAME
+            try:
+                settings_bytes = settings_file.read_bytes()
+                root = settings_file.parent
+                break
+            except FileNotFoundError:
+                pass
+
+        if root is None or settings_bytes is None:
+            raise SettingsError(
+                f"could not find {FILE_NAME} (max depth: {MAX_DEPTH})"
+            )
+
+        settings_toml = tomli.load(BytesIO(settings_bytes))
+        return class_(root, settings_toml)
 
     def for_plugin(self, name: str) -> PluginSettings:
         """

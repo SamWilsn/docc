@@ -69,7 +69,7 @@ def main(command_line: Sequence[str] | None = None) -> None:
     )
 
     args = parser.parse_args(command_line)
-    settings = Settings(Path.cwd())
+    settings = Settings.from_file(Path.cwd())
 
     if args.output is None:
         output_root = settings.output.path
