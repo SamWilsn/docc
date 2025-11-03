@@ -2,7 +2,8 @@
   "strict": true,
   "site_package_search_strategy": "pep561",
   "source_directories": [
-    "src"
+    "src",
+    "tests"
   ],
   "search_path": [
     "./src",
