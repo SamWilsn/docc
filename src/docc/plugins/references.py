@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Ethereum Foundation
+# Copyright (C) 2022-2025 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -51,6 +51,7 @@ class ReferenceError(Exception):
     def __init__(
         self, identifier: str, context: Optional[Context] = None
     ) -> None:
+        super().__init__(identifier, context)
         message = f"undefined identifier: `{identifier}`"
         source = None
         if context:
