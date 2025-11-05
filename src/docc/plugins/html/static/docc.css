@@ -316,3 +316,21 @@ details[open] > summary::after {
 .header-anchor:focus-within .link-logo {
     visibility: visible;
 }
+
+.footnote-ref {
+    text-decoration: none;
+}
+
+.footnotes {
+    margin-top: 2rem;
+    font-size: 0.9em;
+}
+
+.footnotes hr {
+    margin-bottom: 1rem;
+}
+
+.footnote-backref {
+    text-decoration: none;
+    margin-left: 0.25rem;
+}
