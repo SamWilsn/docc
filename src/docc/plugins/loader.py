@@ -19,12 +19,25 @@ Load plugins.
 
 import sys
 from inspect import isabstract
-from typing import Callable, Dict, Type, TypeVar
+from typing import Callable, Dict, Optional, Type, TypeVar
 
 if sys.version_info < (3, 10):
     from importlib_metadata import EntryPoint, entry_points
 else:
     from importlib.metadata import EntryPoint, entry_points
+
+
+# Module-level cache for entry_points() to avoid repeated look-ups
+_PLUGIN_ENTRY_POINTS: Optional[Dict[str, EntryPoint]] = None
+
+
+def _get_plugin_entry_points() -> Dict[str, EntryPoint]:
+    """Get cached plugin entry points, loading on first access."""
+    global _PLUGIN_ENTRY_POINTS
+    if _PLUGIN_ENTRY_POINTS is None:
+        found = set(entry_points(group="docc.plugins"))
+        _PLUGIN_ENTRY_POINTS = {entry.name: entry for entry in found}
+    return _PLUGIN_ENTRY_POINTS
 
 
 class PluginError(Exception):
@@ -47,8 +60,7 @@ class Loader:
         """
         Create an instance and populate it with the discovered plugins.
         """
-        found = set(entry_points(group="docc.plugins"))
-        self.entry_points = {entry.name: entry for entry in found}
+        self.entry_points = _get_plugin_entry_points()
 
     def load(self, base: Type[L], name: str) -> Callable[..., L]:
         """
