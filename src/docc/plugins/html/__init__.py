@@ -75,6 +75,8 @@ if sys.version_info < (3, 10):
 else:
     from importlib.metadata import EntryPoint, entry_points
 
+_LOADED_RENDERERS: Dict[Type[Node], Callable[..., object]] = {}
+
 
 # Module-level cache for HTML renderer entry points
 _HTML_ENTRY_POINTS: Optional[Dict[str, EntryPoint]] = None
@@ -460,7 +462,7 @@ class HTMLVisitor(Visitor):
         self.entry_points = _get_html_entry_points()
         self.root = HTMLRoot(context)
         self.stack = [self.root]
-        self.renderers = {}
+        self.renderers = _LOADED_RENDERERS
         self.context = context
 
     def _renderer(self, node: Node) -> Callable[..., object]:
