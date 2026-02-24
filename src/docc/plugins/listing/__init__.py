@@ -20,7 +20,7 @@ Plugin that renders directory listings.
 from abc import ABC, abstractmethod
 from os.path import commonpath
 from pathlib import PurePath
-from typing import Dict, Final, FrozenSet, Iterator, Set, Tuple
+from typing import Dict, Final, FrozenSet, Iterator, Optional, Set, Tuple
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -31,6 +31,20 @@ from docc.document import Document, Node
 from docc.plugins import html
 from docc.settings import PluginSettings
 from docc.source import Source
+
+# Module-level cache for Jinja2 environment
+_LISTING_ENV: Optional[Environment] = None
+
+
+def _get_listing_env() -> Environment:
+    """Get cached Jinja2 environment for listing templates."""
+    global _LISTING_ENV
+    if _LISTING_ENV is None:
+        _LISTING_ENV = Environment(
+            loader=PackageLoader("docc.plugins.listing"),
+            autoescape=select_autoescape(),
+        )
+    return _LISTING_ENV
 
 
 class Listable(ABC):
@@ -207,10 +221,7 @@ def render_html(
 
     entries.sort()
 
-    env = Environment(
-        loader=PackageLoader("docc.plugins.listing"),
-        autoescape=select_autoescape(),
-    )
+    env = _get_listing_env()
     template = env.get_template("listing.html")
     parser = html.HTMLParser(context)
     parser.feed(template.render(context=context, entries=entries))

@@ -29,6 +29,9 @@ docstrings1
 docstrings2
 endtag
 entityref
+env1
+env2
+envs
 ep
 eq
 ethereum

@@ -89,6 +89,28 @@ def _get_html_entry_points() -> Dict[str, EntryPoint]:
     return _HTML_ENTRY_POINTS
 
 
+# Module-level cache for Jinja2 environments
+_JINJA_ENVS: Dict[str, Environment] = {}
+
+
+def _get_jinja_env(
+    package: str, with_reference_extension: bool = False
+) -> Environment:
+    """Get cached Jinja2 environment for a package."""
+    cache_key = f"{package}:{with_reference_extension}"
+    if cache_key not in _JINJA_ENVS:
+        extensions = [_ReferenceExtension] if with_reference_extension else []
+        env = Environment(
+            extensions=extensions,
+            loader=PackageLoader(package),
+            autoescape=select_autoescape(),
+        )
+        env.filters["html"] = _html_filter
+        env.filters["find"] = _find_filter
+        _JINJA_ENVS[cache_key] = env
+    return _JINJA_ENVS[cache_key]
+
+
 RenderResult = Optional[Union["HTMLTag", "HTMLRoot"]]
 """
 Possible output from rendering to HTML.
@@ -328,10 +350,8 @@ class HTMLRoot(OutputNode):
             markup = ET.tostring(element, encoding="unicode", method="html")
             rendered.write(markup)
 
-        env = Environment(
-            extensions=[_ReferenceExtension],
-            loader=PackageLoader("docc.plugins.html"),
-            autoescape=select_autoescape(),
+        env = _get_jinja_env(
+            "docc.plugins.html", with_reference_extension=True
         )
         template = env.get_template("base.html")
         body = rendered.getvalue()
@@ -751,13 +771,7 @@ def render_template(
     Render a template as a child of the given parent.
     """
     static_path = _static_path_from(context)
-    env = Environment(
-        extensions=[_ReferenceExtension],
-        loader=PackageLoader(package),
-        autoescape=select_autoescape(),
-    )
-    env.filters["html"] = _html_filter
-    env.filters["find"] = _find_filter
+    env = _get_jinja_env(package, with_reference_extension=True)
     template = env.get_template(template_name)
     parser = HTMLParser(context)
     parser.feed(

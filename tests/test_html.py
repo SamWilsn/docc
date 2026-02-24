@@ -20,11 +20,13 @@ from typing import Iterator, Optional
 from unittest.mock import patch
 
 import pytest
+from jinja2 import Environment
 
 import docc.plugins.html as html_module
 from docc.context import Context
 from docc.document import BlankNode, Document, ListNode, Node, Visit
 from docc.plugins.html import (
+    _JINJA_ENVS,
     HTML,
     HTMLContext,
     HTMLDiscover,
@@ -36,6 +38,7 @@ from docc.plugins.html import (
     TextNode,
     _ElementTreeVisitor,
     _get_html_entry_points,
+    _get_jinja_env,
     _make_relative,
     blank_node,
     html_tag,
@@ -735,3 +738,45 @@ class TestEntryPointsCache:
             assert isinstance(ep, html_module.EntryPoint)
 
         assert "docc.document:BlankNode" in cached
+
+
+class TestJinjaEnvCache:
+    def setup_method(self) -> None:
+        """Clear the module-level cache before each test."""
+        _JINJA_ENVS.clear()
+
+    def test_returns_environment_with_filters_and_extensions(self) -> None:
+        """Verify _get_jinja_env returns an env with filters."""
+        env = _get_jinja_env(
+            "docc.plugins.html", with_reference_extension=True
+        )
+        assert isinstance(env, Environment)
+        assert "html" in env.filters
+        assert "find" in env.filters
+        assert len(env.extensions) > 0
+
+    def test_same_args_reuse_single_environment(self) -> None:
+        """Two calls with the same arguments create only one Environment."""
+        with patch("docc.plugins.html.PackageLoader") as mock_loader:
+            env1 = _get_jinja_env(
+                "docc.plugins.html", with_reference_extension=True
+            )
+            env2 = _get_jinja_env(
+                "docc.plugins.html", with_reference_extension=True
+            )
+            assert env1 is env2
+            assert mock_loader.call_count == 1
+
+    def test_cache_keys_for_different_args(self) -> None:
+        """Different package/extension combos produce distinct keys."""
+        _get_jinja_env("docc.plugins.html", with_reference_extension=True)
+        _get_jinja_env("docc.plugins.html", with_reference_extension=False)
+        _get_jinja_env(
+            "docc.plugins.listing",
+            with_reference_extension=True,
+        )
+
+        assert "docc.plugins.html:True" in _JINJA_ENVS
+        assert "docc.plugins.html:False" in _JINJA_ENVS
+        assert "docc.plugins.listing:True" in _JINJA_ENVS
+        assert len(_JINJA_ENVS) == 3

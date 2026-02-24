@@ -18,7 +18,9 @@ from pathlib import Path, PurePath
 from typing import Dict, Iterator, List, Optional, Set
 
 import pytest
+from jinja2 import Environment
 
+import docc.plugins.listing as listing_module
 from docc.context import Context
 from docc.document import BlankNode, Document
 from docc.plugins.html import HTMLTag
@@ -28,6 +30,7 @@ from docc.plugins.listing import (
     ListingDiscover,
     ListingNode,
     ListingSource,
+    _get_listing_env,
     render_html,
 )
 from docc.settings import PluginSettings, Settings
@@ -340,3 +343,27 @@ class TestRenderHtml:
         assert href.endswith(
             ".html"
         ), f"Link href should end with .html, got: {href}"
+
+
+class TestListingEnvCache:
+    def setup_method(self) -> None:
+        """Reset the module-level cache before each test."""
+        listing_module._LISTING_ENV = None
+
+    def test_returns_environment_with_correct_loader(self) -> None:
+        """Verify _get_listing_env returns an Environment with a loader."""
+        env = _get_listing_env()
+        assert isinstance(env, Environment)
+        assert env.loader is not None
+
+    def test_two_calls_return_same_object(self) -> None:
+        """Two calls to _get_listing_env return the exact same object."""
+        env1 = _get_listing_env()
+        env2 = _get_listing_env()
+        assert env1 is env2
+
+    def test_cache_is_populated_after_call(self) -> None:
+        """Verify the module-level cache is populated after a call."""
+        assert listing_module._LISTING_ENV is None
+        _get_listing_env()
+        assert listing_module._LISTING_ENV is not None
