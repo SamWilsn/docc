@@ -16,11 +16,12 @@
 from io import StringIO
 from pathlib import Path, PurePath
 from typing import Any, List, Optional, Sequence, TextIO
+from unittest.mock import patch
 
 import pytest
 
 from docc.context import Context
-from docc.document import BlankNode, Document
+from docc.document import BlankNode, Document, ListNode
 from docc.plugins.html import HTMLTag, TextNode
 from docc.plugins.verbatim import (
     Fragment,
@@ -568,3 +569,132 @@ class TestVerbatimHtmlRendering:
         assert "hi" in classes.split()
         # The span should be appended to parent
         assert result in parent.children
+
+
+class TestBoundsCacheBehavior:
+    """Caching _BoundsVisitor results must not change output."""
+
+    def test_cached_bounds_produce_same_text_output(self) -> None:
+        """Caching does not change text output for wrapped Fragments."""
+        source = MockTextSource("alpha\nbeta\ngamma")
+        verbatim = Verbatim(source)
+
+        wrapper = ListNode([Fragment(Pos(1, 0), Pos(2, 4))])
+        verbatim.append(wrapper)
+
+        visitor = ConcreteVerbatimVisitor()
+        verbatim.visit(visitor)
+
+        joined = "".join(visitor.texts)
+        assert "alpha" in joined
+        assert "beta" in joined
+
+    def test_multiple_wrappers_produce_correct_output(self) -> None:
+        """Multiple wrappers with Fragments produce correct text."""
+        source = MockTextSource("aaa\nbbb\nccc\nddd")
+        verbatim = Verbatim(source)
+
+        first_wrapper = ListNode([Fragment(Pos(1, 0), Pos(2, 3))])
+        second_wrapper = ListNode([Fragment(Pos(3, 0), Pos(4, 3))])
+        verbatim.append(first_wrapper)
+        verbatim.append(second_wrapper)
+
+        visitor = ConcreteVerbatimVisitor()
+        verbatim.visit(visitor)
+
+        joined = "".join(visitor.texts)
+        assert "aaa" in joined
+        assert "bbb" in joined
+        assert "ccc" in joined
+        assert "ddd" in joined
+
+
+class TestBoundsCacheCallCount:
+    """The cache must eliminate redundant _BoundsVisitor creation."""
+
+    def test_single_wrapper_visited_once(self) -> None:
+        """Enter and exit of one node creates only one _BoundsVisitor."""
+        source = MockTextSource("hello\nworld")
+        verbatim = Verbatim(source)
+
+        wrapper = ListNode([Fragment(Pos(1, 0), Pos(2, 5))])
+        verbatim.append(wrapper)
+
+        visitor = ConcreteVerbatimVisitor()
+
+        with patch(
+            "docc.plugins.verbatim._BoundsVisitor",
+            wraps=_BoundsVisitor,
+        ) as mock_cls:
+            verbatim.visit(visitor)
+            # One wrapper node -> one _BoundsVisitor creation (not two).
+            assert mock_cls.call_count == 1
+
+    def test_two_wrappers_visited_once_each(self) -> None:
+        """Two distinct nodes each create exactly one _BoundsVisitor."""
+        source = MockTextSource("aaa\nbbb\nccc\nddd")
+        verbatim = Verbatim(source)
+
+        first_wrapper = ListNode([Fragment(Pos(1, 0), Pos(2, 3))])
+        second_wrapper = ListNode([Fragment(Pos(3, 0), Pos(4, 3))])
+        verbatim.append(first_wrapper)
+        verbatim.append(second_wrapper)
+
+        visitor = ConcreteVerbatimVisitor()
+
+        with patch(
+            "docc.plugins.verbatim._BoundsVisitor",
+            wraps=_BoundsVisitor,
+        ) as mock_cls:
+            verbatim.visit(visitor)
+            # Two unique wrappers -> exactly two creations.
+            assert mock_cls.call_count == 2
+
+
+class TestBoundsCacheKeying:
+    """The _bounds_cache dictionary must be keyed by id(node)."""
+
+    def test_cache_contains_wrapper_ids(self) -> None:
+        """Cache has entries keyed by id(node) for each wrapper node."""
+        source = MockTextSource("hello\nworld")
+        verbatim = Verbatim(source)
+
+        wrapper = ListNode([Fragment(Pos(1, 0), Pos(2, 5))])
+        verbatim.append(wrapper)
+
+        visitor = ConcreteVerbatimVisitor()
+        verbatim.visit(visitor)
+
+        assert id(wrapper) in visitor._bounds_cache
+
+    def test_cache_values_are_start_end_tuples(self) -> None:
+        """Cached values must be (start, end) tuples of Optional[Pos]."""
+        source = MockTextSource("hello\nworld")
+        verbatim = Verbatim(source)
+
+        wrapper = ListNode([Fragment(Pos(1, 0), Pos(2, 5))])
+        verbatim.append(wrapper)
+
+        visitor = ConcreteVerbatimVisitor()
+        verbatim.visit(visitor)
+
+        start, end = visitor._bounds_cache[id(wrapper)]
+        assert start == Pos(1, 0)
+        assert end == Pos(2, 5)
+
+    def test_cache_has_entry_per_wrapper(self) -> None:
+        """Each non-Fragment/non-Verbatim node gets its own cache entry."""
+        source = MockTextSource("aaa\nbbb\nccc\nddd")
+        verbatim = Verbatim(source)
+
+        first_wrapper = ListNode([Fragment(Pos(1, 0), Pos(2, 3))])
+        second_wrapper = ListNode([Fragment(Pos(3, 0), Pos(4, 3))])
+        verbatim.append(first_wrapper)
+        verbatim.append(second_wrapper)
+
+        visitor = ConcreteVerbatimVisitor()
+        verbatim.visit(visitor)
+
+        assert id(first_wrapper) in visitor._bounds_cache
+        assert id(second_wrapper) in visitor._bounds_cache
+        assert len(visitor._bounds_cache) == 2

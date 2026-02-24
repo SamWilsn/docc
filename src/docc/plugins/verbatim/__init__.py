@@ -21,7 +21,16 @@ highlighting support.
 import logging
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import Final, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import (
+    Dict,
+    Final,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from docc.context import Context
 from docc.document import Document, Node, Visit, Visitor
@@ -290,11 +299,22 @@ class VerbatimVisitor(Visitor):
 
     _depth: Optional[int]
     _verbatim: Optional[_VerbatimContext]
+    _bounds_cache: Dict[int, Tuple[Optional[Pos], Optional[Pos]]]
 
     def __init__(self) -> None:
         super().__init__()
         self._depth = None
         self._verbatim = None
+        self._bounds_cache = {}
+
+    def _get_bounds(self, node: Node) -> Tuple[Optional[Pos], Optional[Pos]]:
+        """Get cached bounds for a node, computing if necessary."""
+        node_id = id(node)
+        if node_id not in self._bounds_cache:
+            visitor = _BoundsVisitor()
+            node.visit(visitor)
+            self._bounds_cache[node_id] = (visitor.start, visitor.end)
+        return self._bounds_cache[node_id]
 
     #
     # Override in Subclasses:
@@ -434,11 +454,9 @@ class VerbatimVisitor(Visitor):
         elif isinstance(node, Verbatim):
             return self._enter_verbatim(node)
         else:
-            # TODO: Save the results somewhere so we don't visit twice.
-            visitor = _BoundsVisitor()
-            node.visit(visitor)
-            if visitor.start is not None:
-                self._copy(visitor.start.line, visitor.start)
+            start, _ = self._get_bounds(node)
+            if start is not None:
+                self._copy(start.line, start)
             return self.enter_node(node)
 
     def exit(self, node: Node) -> None:
@@ -450,12 +468,10 @@ class VerbatimVisitor(Visitor):
         elif isinstance(node, Verbatim):
             return self._exit_verbatim(node)
         else:
-            # TODO: Save the results somewhere so we don't visit twice.
-            visitor = _BoundsVisitor()
-            node.visit(visitor)
-            if visitor.end is not None:
-                start = visitor.start or visitor.end
-                self._copy(start.line, visitor.end)
+            start, end = self._get_bounds(node)
+            if end is not None:
+                start_pos = start or end
+                self._copy(start_pos.line, end)
             return self.exit_node(node)
 
 
