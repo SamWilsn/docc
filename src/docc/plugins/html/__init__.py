@@ -76,6 +76,19 @@ else:
     from importlib.metadata import EntryPoint, entry_points
 
 
+# Module-level cache for HTML renderer entry points
+_HTML_ENTRY_POINTS: Optional[Dict[str, EntryPoint]] = None
+
+
+def _get_html_entry_points() -> Dict[str, EntryPoint]:
+    """Get cached HTML renderer entry points."""
+    global _HTML_ENTRY_POINTS
+    if _HTML_ENTRY_POINTS is None:
+        found = entry_points(group="docc.plugins.html")
+        _HTML_ENTRY_POINTS = {entry.name: entry for entry in found}
+    return _HTML_ENTRY_POINTS
+
+
 RenderResult = Optional[Union["HTMLTag", "HTMLRoot"]]
 """
 Possible output from rendering to HTML.
@@ -424,9 +437,7 @@ class HTMLVisitor(Visitor):
     context: Context
 
     def __init__(self, context: Context) -> None:
-        # Discover render functions.
-        found = entry_points(group="docc.plugins.html")
-        self.entry_points = {entry.name: entry for entry in found}
+        self.entry_points = _get_html_entry_points()
         self.root = HTMLRoot(context)
         self.stack = [self.root]
         self.renderers = {}

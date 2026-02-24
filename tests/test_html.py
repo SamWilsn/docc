@@ -21,6 +21,7 @@ from unittest.mock import patch
 
 import pytest
 
+import docc.plugins.html as html_module
 from docc.context import Context
 from docc.document import BlankNode, Document, ListNode, Node, Visit
 from docc.plugins.html import (
@@ -34,6 +35,7 @@ from docc.plugins.html import (
     HTMLVisitor,
     TextNode,
     _ElementTreeVisitor,
+    _get_html_entry_points,
     _make_relative,
     blank_node,
     html_tag,
@@ -677,3 +679,59 @@ class TestRenderReference:
 
         with pytest.raises(ReferenceError):
             render_reference(context, ref)
+
+
+class TestEntryPointsCache:
+    """Tests for the module-level caching optimization."""
+
+    def setup_method(self) -> None:  # noqa: SC200
+        """Reset the module-level cache before each test."""
+        html_module._HTML_ENTRY_POINTS = None
+
+    def teardown_method(self) -> None:  # noqa: SC200
+        """Reset the module-level cache after each test."""
+        html_module._HTML_ENTRY_POINTS = None
+
+    def test_two_visitors_share_entry_points(self) -> None:
+        """Two HTMLVisitor instances share the cached dict."""
+        context = Context({})
+        first = HTMLVisitor(context)
+        second = HTMLVisitor(context)
+
+        assert first.entry_points is second.entry_points
+        assert first.entry_points == second.entry_points
+
+    def test_both_visitors_resolve_known_key(self) -> None:
+        """Both visitors can resolve a known entry point."""
+        context = Context({})
+        first = HTMLVisitor(context)
+        second = HTMLVisitor(context)
+
+        key = "docc.document:BlankNode"
+        assert key in first.entry_points
+        assert key in second.entry_points
+
+    def test_single_call_for_multiple_visitors(  # noqa: SC200
+        self,
+    ) -> None:
+        """Only one entry_points() call across visitors."""
+        ep_path = "docc.plugins.html.entry_points"
+        with patch(ep_path, wraps=html_module.entry_points) as mock_ep:
+            HTMLVisitor(Context({}))
+            HTMLVisitor(Context({}))
+            HTMLVisitor(Context({}))
+
+            mock_ep.assert_called_once_with(group="docc.plugins.html")
+
+    def test_cached_dict_maps_names_to_objects(self) -> None:
+        """Cached dict maps names to EntryPoint objects."""
+        cached = _get_html_entry_points()
+
+        assert isinstance(cached, dict)
+        assert len(cached) > 0
+
+        for name, ep in cached.items():
+            assert isinstance(name, str)
+            assert isinstance(ep, html_module.EntryPoint)
+
+        assert "docc.document:BlankNode" in cached
