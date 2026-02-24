@@ -610,13 +610,12 @@ class TestHTMLVisitorEnter:
         ) -> HTMLTag:
             return result_tag
 
-        visitor.renderers[ListNode] = fake_renderer
+        with patch.dict(visitor.renderers, {ListNode: fake_renderer}):
+            node = ListNode()
+            result = visitor.enter(node)
 
-        node = ListNode()
-        result = visitor.enter(node)
-
-        assert result == Visit.TraverseChildren
-        assert visitor.stack[-1] is result_tag
+            assert result == Visit.TraverseChildren
+            assert visitor.stack[-1] is result_tag
 
 
 class TestRenderReference:
