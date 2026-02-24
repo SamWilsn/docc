@@ -17,6 +17,7 @@ import tempfile
 from io import StringIO
 from pathlib import Path, PurePath
 from typing import Optional, TextIO
+from unittest.mock import patch
 
 import pytest
 
@@ -182,3 +183,40 @@ class TestTextSourceWithFiles:
             assert source.line(2) == "# Line 2"
         finally:
             path.unlink()
+
+
+class TestTextSourceCache:
+    def test_open_called_once_for_multiple_line_calls(self) -> None:
+        """Calling line() multiple times should only open the file once."""
+        content = "line1\nline2\nline3"
+        source = ConcreteTextSource(content)
+
+        with patch.object(source, "open", wraps=source.open) as mock_open:
+            source.line(1)
+            source.line(2)
+            source.line(3)
+
+            mock_open.assert_called_once()
+
+    def test_lines_cache_matches_content_split(self) -> None:
+        """After calling line(), _lines_cache matches content split."""
+        content = "alpha\nbeta\ngamma"
+        source = ConcreteTextSource(content)
+
+        source.line(1)
+
+        assert source._lines_cache == ["alpha", "beta", "gamma"]
+
+    def test_lines_cache_empty_content(self) -> None:
+        """Cache for empty content should be a list with one empty string."""
+        source = ConcreteTextSource("")
+
+        source.line(1)
+
+        assert source._lines_cache == [""]
+
+    def test_lines_cache_is_none_before_first_call(self) -> None:
+        """Before any line() call, the cache should be None."""
+        source = ConcreteTextSource("some content")
+
+        assert source._lines_cache is None

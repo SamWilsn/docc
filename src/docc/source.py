@@ -19,7 +19,7 @@ Sources are the inputs for documentation generation.
 
 from abc import ABC, abstractmethod
 from pathlib import PurePath
-from typing import Optional, TextIO
+from typing import List, Optional, TextIO
 
 
 class Source(ABC):
@@ -62,22 +62,29 @@ class TextSource(Source):
     A Source that supports reading text snippets.
     """
 
+    _lines_cache: Optional[List[str]] = None
+
     @abstractmethod
     def open(self) -> TextIO:
         """
         Open the source for reading.
         """
 
+    def _get_lines(self) -> List[str]:
+        """Get cached lines, loading from file on first access."""
+        if self._lines_cache is None:
+            with self.open() as f:
+                self._lines_cache = f.read().split("\n")
+        return self._lines_cache
+
     def line(self, number: int) -> str:
         """
         Extract a line of text from the source.
         """
-        # TODO: Don't reopen and reread the file every time...
-        with self.open() as f:
-            lines = f.read().split("\n")
-            try:
-                return lines[number - 1]
-            except IndexError as e:
-                raise IndexError(
-                    f"line {number} out of range for `{self.relative_path}`"
-                ) from e
+        lines = self._get_lines()
+        try:
+            return lines[number - 1]
+        except IndexError as e:
+            raise IndexError(
+                f"line {number} out of range for `{self.relative_path}`"
+            ) from e
