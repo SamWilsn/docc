@@ -18,6 +18,7 @@ Load plugins.
 """
 
 import sys
+from functools import cache
 from inspect import isabstract
 from typing import Callable, Dict, Type, TypeVar
 
@@ -31,6 +32,18 @@ class PluginError(Exception):
     """
     An error encountered while loading a plugin.
     """
+
+
+@cache
+def entry_points_by_group(group: str) -> Dict[str, EntryPoint]:
+    """
+    Find [entry points][p] belonging to `group`, permanently caching the
+    result.
+
+    [p]: https://packaging.python.org/en/latest/specifications/entry-points/
+    """
+    found = entry_points(group=group)
+    return {entry.name: entry for entry in found}
 
 
 L = TypeVar("L")
@@ -47,8 +60,7 @@ class Loader:
         """
         Create an instance and populate it with the discovered plugins.
         """
-        found = set(entry_points(group="docc.plugins"))
-        self.entry_points = {entry.name: entry for entry in found}
+        self.entry_points = entry_points_by_group("docc.plugins")
 
     def load(self, base: Type[L], name: str) -> Callable[..., L]:
         """

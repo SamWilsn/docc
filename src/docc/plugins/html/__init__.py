@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Ethereum Foundation
+# Copyright (C) 2022-2026 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ from docc.document import (
     Visitor,
 )
 from docc.plugins import references
-from docc.plugins.loader import PluginError
+from docc.plugins.loader import PluginError, entry_points_by_group
 from docc.plugins.references import Index, ReferenceError
 from docc.plugins.resources import ResourceSource
 from docc.plugins.search import Search
@@ -71,9 +71,9 @@ from docc.source import Source
 from docc.transform import Transform
 
 if sys.version_info < (3, 10):
-    from importlib_metadata import EntryPoint, entry_points
+    from importlib_metadata import EntryPoint
 else:
-    from importlib.metadata import EntryPoint, entry_points
+    from importlib.metadata import EntryPoint
 
 
 RenderResult = Optional[Union["HTMLTag", "HTMLRoot"]]
@@ -425,8 +425,7 @@ class HTMLVisitor(Visitor):
 
     def __init__(self, context: Context) -> None:
         # Discover render functions.
-        found = entry_points(group="docc.plugins.html")
-        self.entry_points = {entry.name: entry for entry in found}
+        self.entry_points = entry_points_by_group("docc.plugins.html")
         self.root = HTMLRoot(context)
         self.stack = [self.root]
         self.renderers = {}
