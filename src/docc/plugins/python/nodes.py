@@ -20,7 +20,16 @@ Python language support for docc.
 import dataclasses
 import typing
 from dataclasses import dataclass, fields
-from typing import Iterable, Literal, Optional, Sequence, Union
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Iterable,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from docc.document import BlankNode, ListNode, Node, Visit, Visitor
 from docc.plugins.search import Content, Searchable
@@ -31,12 +40,24 @@ class PythonNode(Node):
     Base implementation of Node operations for Python nodes.
     """
 
+    # Class-level cache for dataclass fields (populated lazily)
+    _fields_cache: ClassVar[
+        Dict[type[Any], tuple[dataclasses.Field[Any], ...]]
+    ] = {}
+
+    @classmethod
+    def _get_fields(cls) -> tuple[dataclasses.Field[Any], ...]:
+        """Get cached dataclass fields for this class."""
+        if cls not in cls._fields_cache:
+            cls._fields_cache[cls] = tuple(fields(cls))
+        return cls._fields_cache[cls]
+
     @property
     def children(self) -> Iterable[Node]:
         """
         Child nodes belonging to this node.
         """
-        for field in fields(self):
+        for field in self._get_fields():
             value = getattr(self, field.name)
 
             if field.type == Node:
@@ -51,7 +72,7 @@ class PythonNode(Node):
         """
         Replace the old node with the given new node.
         """
-        for field in fields(self):
+        for field in self._get_fields():
             value = getattr(self, field.name)
             if value == old:
                 assert isinstance(new, field.type)

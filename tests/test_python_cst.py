@@ -13,10 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import dataclasses
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path, PurePath
 from typing import Dict, Mapping, Set
+from unittest.mock import patch
 
 import pytest
 
@@ -503,3 +505,123 @@ class TestPythonNodeChildrenTypeError:
 
         with pytest.raises(TypeError, match="child not Node"):
             list(module.children)
+
+
+class TestFieldsCacheBehavioral:
+    """Behavioral tests for children and replace_child with caching."""
+
+    def setup_method(self) -> None:
+        nodes.PythonNode._fields_cache.clear()
+
+    def test_module_children_yields_expected_nodes(self) -> None:
+        """Module.children should yield all three default child nodes."""
+        module = nodes.Module()
+        children = list(module.children)
+        assert len(children) == 3
+        assert children[0] is module.name
+        assert children[1] is module.docstring
+        assert children[2] is module.members
+
+    def test_function_children_yields_expected_nodes(self) -> None:
+        """Function.children should yield all Node-typed fields."""
+        func = nodes.Function(asynchronous=False)
+        children = list(func.children)
+        # Function has 6 Node fields: decorators, name, parameters,
+        # return_type, docstring, body.
+        assert len(children) == 6
+
+    def test_class_children_yields_expected_nodes(self) -> None:
+        """Class.children should yield all Node-typed fields."""
+        cls = nodes.Class()
+        children = list(cls.children)
+        # Class has 6 Node fields: decorators, name, bases, metaclass,
+        # docstring, members.
+        assert len(children) == 6
+
+    def test_replace_child_works_with_cache(self) -> None:
+        """replace_child should correctly swap a child node."""
+        module = nodes.Module()
+        old_name = module.name
+        new_name = nodes.Name("replaced")
+        module.replace_child(old_name, new_name)
+        assert module.name is new_name
+
+
+class TestFieldsCacheCallCount:
+    """Spy tests verifying fields() is called once per subclass."""
+
+    def setup_method(self) -> None:
+        nodes.PythonNode._fields_cache.clear()
+
+    def test_fields_called_once_for_multiple_module_instances(self) -> None:
+        """Multiple Module instances should trigger only one fields() call."""
+        with patch(
+            "docc.plugins.python.nodes.fields", wraps=dataclasses.fields
+        ) as mock_fields:
+            first = nodes.Module()
+            second = nodes.Module()
+            list(first.children)
+            list(second.children)
+            list(first.children)
+            mock_fields.assert_called_once()
+
+    def test_fields_called_once_per_distinct_subclass(self) -> None:
+        """Each distinct subclass should trigger exactly one fields() call."""
+        with patch(
+            "docc.plugins.python.nodes.fields", wraps=dataclasses.fields
+        ) as mock_fields:
+            module = nodes.Module()
+            func = nodes.Function(asynchronous=False)
+            list(module.children)
+            list(func.children)
+            assert mock_fields.call_count == 2
+
+    def test_replace_child_does_not_trigger_extra_fields_call(self) -> None:
+        """replace_child should reuse cached fields without extra calls."""
+        with patch(
+            "docc.plugins.python.nodes.fields", wraps=dataclasses.fields
+        ) as mock_fields:
+            module = nodes.Module()
+            list(module.children)
+            assert mock_fields.call_count == 1
+
+            old_name = module.name
+            module.replace_child(old_name, nodes.Name("new"))
+            # Still only one call; replace_child used the cache.
+            assert mock_fields.call_count == 1
+
+
+class TestFieldsCacheKeying:
+    """Tests verifying cache keys and stored value types."""
+
+    def setup_method(self) -> None:
+        nodes.PythonNode._fields_cache.clear()
+
+    def test_cache_populated_with_correct_keys(self) -> None:
+        """Cache should contain Module and Function type keys."""
+        module = nodes.Module()
+        func = nodes.Function(asynchronous=False)
+        list(module.children)
+        list(func.children)
+
+        assert nodes.Module in nodes.PythonNode._fields_cache
+        assert nodes.Function in nodes.PythonNode._fields_cache
+
+    def test_cached_values_are_tuples_of_field(self) -> None:
+        """Cached values should be tuples of dataclasses.Field objects."""
+        module = nodes.Module()
+        list(module.children)
+
+        cached = nodes.PythonNode._fields_cache[nodes.Module]
+        assert isinstance(cached, tuple)
+        for item in cached:
+            assert isinstance(item, dataclasses.Field)
+
+    def test_cache_empty_after_clear(self) -> None:
+        """Clearing the cache should remove all entries."""
+        module = nodes.Module()
+        list(module.children)
+        assert len(nodes.PythonNode._fields_cache) > 0
+
+        nodes.PythonNode._fields_cache.clear()
+        assert len(nodes.PythonNode._fields_cache) == 0
