@@ -61,6 +61,19 @@ table.verbatim > tbody > tr > th {
     padding: 0 0.5ex;
 }
 
+/* Colored backgrounds for deleted and inserted table cells */
+del > td,
+del td {
+    background-color: #ffeef0;
+    text-decoration: line-through;
+}
+
+ins > td,
+ins td {
+    background-color: #e6ffed;
+    text-decoration: none;
+}
+
 section section {
     padding-left: 1em;
     margin-top: 2em;
@@ -315,4 +328,5 @@ details[open] > summary::after {
 .header-anchor:hover .link-logo,
 .header-anchor:focus-within .link-logo {
     visibility: visible;
+    
 }
