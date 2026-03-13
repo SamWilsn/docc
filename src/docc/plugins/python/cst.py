@@ -1178,18 +1178,30 @@ class _VerbatimTransform(Visitor):
         if not isinstance(node, CstNode):
             return
 
+        new: Optional[Node] = None
+        children = [c for c in node.children if not isinstance(c, BlankNode)]
+
         if isinstance(node.cst_node, WHITESPACE):
-            new = BlankNode()
-        else:
+            if not children:
+                new = BlankNode()
+            elif len(children) == 1:
+                new = children[0]
+
+        if new is None:
+            start = node.start
+            for child in children:
+                if isinstance(child, Fragment) and child.start < start:
+                    start = child.start
+
             name = dasherize(underscore(node.cst_node.__class__.__name__))
 
             new = Fragment(
-                start=node.start,
+                start=start,
                 end=node.end,
                 highlights=[name],
             )
 
-            for child in node.children:
+            for child in children:
                 new.append(child)
 
         if self.stack:
