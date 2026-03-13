@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Ethereum Foundation
+# Copyright (C) 2022-2023,2026 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,8 +18,11 @@ Sources are the inputs for documentation generation.
 """
 
 from abc import ABC, abstractmethod
+from io import StringIO
 from pathlib import PurePath
-from typing import Optional, TextIO
+from typing import Final, Optional, Sequence, TextIO
+
+from typing_extensions import override
 
 
 class Source(ABC):
@@ -81,3 +84,34 @@ class TextSource(Source):
                 raise IndexError(
                     f"line {number} out of range for `{self.relative_path}`"
                 ) from e
+
+
+class StringSource(TextSource):
+    """
+    A Source that reads text snippets from a `str`.
+    """
+
+    def __init__(
+        self,
+        text: str,
+        output_path: PurePath,
+        relative_path: Optional[PurePath] = None,
+    ) -> None:
+        self._lines: Final[Sequence[str]] = text.split("\n")
+        self._text: Final[str] = text
+        self.output_path: Final[PurePath] = output_path
+        self.relative_path: Final[Optional[PurePath]] = relative_path
+
+    @override
+    def open(self) -> TextIO:
+        """
+        Open the source for reading.
+        """
+        return StringIO(self._text)
+
+    @override
+    def line(self, number: int) -> str:
+        """
+        Extract a line of text from the source.
+        """
+        return self._lines[number - 1]
