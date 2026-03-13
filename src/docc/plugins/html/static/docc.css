@@ -12,6 +12,8 @@
 
     --name-color: maroon;
 
+    --comment-color: gray;
+
     --code-max-width: 100%;
 
     --grid-maxWidth: 100%;
@@ -286,6 +288,11 @@ details[open] > summary::after {
 
 .hi-name {
     color: var(--name-color);
+}
+
+.hi-comment {
+    color: var(--comment-color);
+    font-weight: var(--default-font-weight);
 }
 
 .hi-call > .hi-name,
