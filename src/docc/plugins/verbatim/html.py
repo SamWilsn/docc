@@ -52,17 +52,24 @@ def render_line(
     assert isinstance(parent, (HTMLRoot, HTMLTag))
     assert isinstance(node, Line)
 
+    line_id = f"L{node.number}"
+
     line_text = TextNode(str(node.number))
 
+    line_link = HTMLTag(
+        "a", attributes={"class": "line", "href": f"#{line_id}"}
+    )
+    line_link.append(line_text)
+
     line_cell = HTMLTag("th")
-    line_cell.append(line_text)
+    line_cell.append(line_link)
 
     code_pre = HTMLTag("pre")
 
     code_cell = HTMLTag("td")
     code_cell.append(code_pre)
 
-    row = HTMLTag("tr")
+    row = HTMLTag("tr", attributes={"id": line_id})
     row.append(line_cell)
     row.append(code_cell)
 
