@@ -2,6 +2,8 @@
  * docc | GPL-3.0 License | https://github.com/SamWilsn/docc
  */
 :root {
+    --bg-highlight-color: #ffeeba;
+
     --default-color: black;
     --default-font-weight: normal;
 
@@ -61,6 +63,15 @@ table.verbatim > tbody > tr > th {
 table.verbatim > tbody > tr > td,
 table.verbatim > tbody > tr > th {
     padding: 0 0.5ex;
+}
+
+.verbatim a.line {
+    color: inherit;
+    text-decoration: none;
+}
+
+table.verbatim > tbody > tr:target > th {
+    background-color: var(--bg-highlight-color);
 }
 
 section section {
