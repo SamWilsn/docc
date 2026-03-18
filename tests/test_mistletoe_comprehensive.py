@@ -87,7 +87,8 @@ class TestMarkdownNodeComprehensive:
         node.replace_child(old, new)
 
         new_children = list(node.children)
-        assert new in new_children
+        assert len(new_children) == 1
+        assert new_children[0] is new
 
     def test_search_children_returns_false(self) -> None:
         node = MarkdownNode(md.Document("test"))
