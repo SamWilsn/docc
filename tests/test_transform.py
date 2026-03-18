@@ -38,13 +38,12 @@ class ConcreteTransform(Transform):
         pass
 
 
-class TestTransform:
-    def test_concrete_transform_init(self, temp_dir: Path) -> None:
-        settings = Settings(temp_dir, {"tool": {"docc": {}}})
-        plugin_settings = settings.for_plugin("test")
+def test_transform_init(temp_dir: Path) -> None:
+    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+    plugin_settings = settings.for_plugin("test")
 
-        transform = ConcreteTransform(plugin_settings)
-        assert transform.config is plugin_settings
+    transform = ConcreteTransform(plugin_settings)
+    assert transform.config is plugin_settings
 
 
 class TestTransformLoad:

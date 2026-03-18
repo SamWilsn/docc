@@ -152,33 +152,32 @@ class TestTextSourceBoundary:
         assert source.line(-1) == "second"
 
 
-class TestTextSourceWithFiles:
-    def test_line_from_real_file(self) -> None:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
-            f.write("# Line 1\n# Line 2\n# Line 3\n")
-            f.flush()
-            path = Path(f.name)
+def test_text_source_line_from_real_file() -> None:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".py", delete=False
+    ) as f:
+        f.write("# Line 1\n# Line 2\n# Line 3\n")
+        f.flush()
+        path = Path(f.name)
 
-        class FileTextSource(TextSource):
-            def __init__(self, file_path: Path):
-                self._path = file_path
+    class FileTextSource(TextSource):
+        def __init__(self, file_path: Path):
+            self._path = file_path
 
-            @property
-            def relative_path(self) -> Optional[PurePath]:
-                return PurePath(self._path.name)
+        @property
+        def relative_path(self) -> Optional[PurePath]:
+            return PurePath(self._path.name)
 
-            @property
-            def output_path(self) -> PurePath:
-                return PurePath(self._path.name)
+        @property
+        def output_path(self) -> PurePath:
+            return PurePath(self._path.name)
 
-            def open(self) -> TextIO:
-                return open(self._path, "r")
+        def open(self) -> TextIO:
+            return open(self._path, "r")
 
-        try:
-            source = FileTextSource(path)
-            assert source.line(1) == "# Line 1"
-            assert source.line(2) == "# Line 2"
-        finally:
-            path.unlink()
+    try:
+        source = FileTextSource(path)
+        assert source.line(1) == "# Line 1"
+        assert source.line(2) == "# Line 2"
+    finally:
+        path.unlink()

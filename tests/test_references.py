@@ -260,13 +260,12 @@ class TestDefinition:
         assert definition.specifier == 5
 
 
-class TestReference:
-    def test_create_reference(self) -> None:
-        child = BlankNode()
-        reference = Reference(identifier="test.func", child=child)
+def test_reference_create() -> None:
+    child = BlankNode()
+    reference = Reference(identifier="test.func", child=child)
 
-        assert reference.identifier == "test.func"
-        assert reference.child is child
+    assert reference.identifier == "test.func"
+    assert reference.child is child
 
 
 class TestIndexContext:

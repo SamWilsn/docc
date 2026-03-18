@@ -72,45 +72,42 @@ class ConcreteBuilder(Builder):
                 processed[source] = Document(BlankNode())
 
 
-class TestDiscover:
-    def test_concrete_discover(self, temp_dir: Path) -> None:
-        settings = Settings(temp_dir, {"tool": {"docc": {}}})
-        plugin_settings = settings.for_plugin("test")
+def test_discover_yields_source(temp_dir: Path) -> None:
+    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+    plugin_settings = settings.for_plugin("test")
 
-        discover = ConcreteDiscover(plugin_settings)
-        sources = list(discover.discover(frozenset()))
+    discover = ConcreteDiscover(plugin_settings)
+    sources = list(discover.discover(frozenset()))
 
-        assert len(sources) == 1
-        assert isinstance(sources[0], MockSource)
-
-
-class TestBuilder:
-    def test_concrete_builder(self, temp_dir: Path) -> None:
-        settings = Settings(temp_dir, {"tool": {"docc": {}}})
-        plugin_settings = settings.for_plugin("test")
-
-        builder = ConcreteBuilder(plugin_settings)
-        unprocessed: Set[Source] = {MockSource()}
-        processed: Dict[Source, Document] = {}
-
-        builder.build(unprocessed, processed)
-
-        assert len(unprocessed) == 0
-        assert len(processed) == 1
+    assert len(sources) == 1
+    assert isinstance(sources[0], MockSource)
 
 
-class TestBuilderContextManager:
-    def test_builder_with_statement(self, temp_dir: Path) -> None:
-        """
-        Builder extends AbstractContextManager, so it must support
-        the with statement (enter/exit protocol).
-        """
-        settings = Settings(temp_dir, {"tool": {"docc": {}}})
-        plugin_settings = settings.for_plugin("test")
+def test_builder_processes_source(temp_dir: Path) -> None:
+    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+    plugin_settings = settings.for_plugin("test")
 
-        builder = ConcreteBuilder(plugin_settings)
-        with builder as b:
-            assert b is builder
+    builder = ConcreteBuilder(plugin_settings)
+    unprocessed: Set[Source] = {MockSource()}
+    processed: Dict[Source, Document] = {}
+
+    builder.build(unprocessed, processed)
+
+    assert len(unprocessed) == 0
+    assert len(processed) == 1
+
+
+def test_builder_context_manager(temp_dir: Path) -> None:
+    """
+    Builder extends AbstractContextManager, so it must support
+    the with statement (enter/exit protocol).
+    """
+    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+    plugin_settings = settings.for_plugin("test")
+
+    builder = ConcreteBuilder(plugin_settings)
+    with builder as b:
+        assert b is builder
 
 
 class TestLoadDiscovers:

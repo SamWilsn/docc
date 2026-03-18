@@ -419,32 +419,30 @@ class TestMistletoeTransforms:
         assert not checker.found_reference
 
 
-class TestIndexTransformIntegration:
-    def test_indexes_definitions_in_tree(self) -> None:
-        first_definition = Definition(identifier="module.ClassA")
-        second_definition = Definition(identifier="module.func_b")
-        root = ListNode([first_definition, second_definition])
-        document = Document(root)
+def test_index_transform_indexes_definitions() -> None:
+    first_definition = Definition(identifier="module.ClassA")
+    second_definition = Definition(identifier="module.func_b")
+    root = ListNode([first_definition, second_definition])
+    document = Document(root)
 
-        source = MockSource()
-        index = Index()
-        context = Context({Document: document, Source: source, Index: index})
+    source = MockSource()
+    index = Index()
+    context = Context({Document: document, Source: source, Index: index})
 
-        transform = IndexTransform(PluginSettings(Settings(Path("."), {}), {}))
-        transform.transform(context)
+    transform = IndexTransform(PluginSettings(Settings(Path("."), {}), {}))
+    transform.transform(context)
 
-        assert first_definition.specifier == 0
-        assert second_definition.specifier == 0
+    assert first_definition.specifier == 0
+    assert second_definition.specifier == 0
 
-        class_locations = list(index.lookup("module.ClassA"))
-        func_locations = list(index.lookup("module.func_b"))
-        assert len(class_locations) == 1
-        assert len(func_locations) == 1
+    class_locations = list(index.lookup("module.ClassA"))
+    func_locations = list(index.lookup("module.func_b"))
+    assert len(class_locations) == 1
+    assert len(func_locations) == 1
 
 
-class TestFullTransformPipeline:
-    def test_python_to_html_references(self, temp_dir: Path) -> None:
-        py_content = '''"""
+def test_pipeline_python_to_html_references(temp_dir: Path) -> None:
+    py_content = '''"""
 Module with references.
 
 See [other](ref:module.other) for more.
@@ -454,74 +452,72 @@ def other():
     """Another function."""
     pass
 '''
-        (temp_dir / "references.py").write_text(py_content)
+    (temp_dir / "references.py").write_text(py_content)
 
-        settings = Settings(
-            temp_dir,
-            {
-                "tool": {
-                    "docc": {
-                        "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]},
-                        }
+    settings = Settings(
+        temp_dir,
+        {
+            "tool": {
+                "docc": {
+                    "plugins": {
+                        "docc.python.discover": {"paths": [str(temp_dir)]},
                     }
                 }
-            },
-        )
+            }
+        },
+    )
 
-        discover = PythonDiscover(settings.for_plugin("docc.python.discover"))
-        sources: Set[Source] = set(discover.discover(frozenset()))
+    discover = PythonDiscover(settings.for_plugin("docc.python.discover"))
+    sources: Set[Source] = set(discover.discover(frozenset()))
 
-        builder = PythonBuilder(settings.for_plugin("docc.python.discover"))
-        documents: Dict[Source, Document] = {}
-        builder.build(sources, documents)
+    builder = PythonBuilder(settings.for_plugin("docc.python.discover"))
+    documents: Dict[Source, Document] = {}
+    builder.build(sources, documents)
 
-        document = list(documents.values())[0]
-        source = list(documents.keys())[0]
-        index = Index()
+    document = list(documents.values())[0]
+    source = list(documents.keys())[0]
+    index = Index()
 
-        context = Context({Document: document, Source: source, Index: index})
+    context = Context({Document: document, Source: source, Index: index})
 
-        PythonTransform(
-            settings.for_plugin("docc.python.transform")
-        ).transform(context)
+    PythonTransform(settings.for_plugin("docc.python.transform")).transform(
+        context
+    )
 
-        DocstringTransform(
-            settings.for_plugin("docc.mistletoe.transform")
-        ).transform(context)
+    DocstringTransform(
+        settings.for_plugin("docc.mistletoe.transform")
+    ).transform(context)
 
-        ReferenceTransform(
-            settings.for_plugin("docc.mistletoe.reference")
-        ).transform(context)
+    ReferenceTransform(
+        settings.for_plugin("docc.mistletoe.reference")
+    ).transform(context)
 
-        IndexTransform(settings.for_plugin("docc.references.index")).transform(
-            context
-        )
+    IndexTransform(settings.for_plugin("docc.references.index")).transform(
+        context
+    )
 
-        # Verify the Reference was found and Index has the definition
-        class ReferenceChecker(Visitor):
-            found_reference = False
+    # Verify the Reference was found and Index has the definition
+    class ReferenceChecker(Visitor):
+        found_reference = False
 
-            def enter(self, node: Node) -> Visit:
-                if isinstance(node, Reference):
-                    self.found_reference = True
-                    assert node.identifier == "module.other"
-                return Visit.TraverseChildren
+        def enter(self, node: Node) -> Visit:
+            if isinstance(node, Reference):
+                self.found_reference = True
+                assert node.identifier == "module.other"
+            return Visit.TraverseChildren
 
-            def exit(self, node: Node) -> None:
-                pass
+        def exit(self, node: Node) -> None:
+            pass
 
-        checker = ReferenceChecker()
-        document.root.visit(checker)
-        assert (
-            checker.found_reference
-        ), "Reference to module.other should be found"
+    checker = ReferenceChecker()
+    document.root.visit(checker)
+    assert checker.found_reference, "Reference to module.other should be found"
 
-        # Verify function was indexed
-        locations = list(index.lookup("references.other"))
-        assert (
-            len(locations) == 1
-        ), "Function 'other' should be indexed exactly once"
+    # Verify function was indexed
+    locations = list(index.lookup("references.other"))
+    assert (
+        len(locations) == 1
+    ), "Function 'other' should be indexed exactly once"
 
 
 class TestEdgeCases:

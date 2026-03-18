@@ -243,19 +243,16 @@ class TestOutputVisitorWithNestedNodes:
         assert destination.getvalue() == "firstsecond"
 
 
-class TestMainWithPythonFiles:
-    def test_processes_python_source(self, temp_dir: Path) -> None:
-        src_dir = temp_dir / "src"
-        src_dir.mkdir()
+def test_main_processes_python_source(temp_dir: Path) -> None:
+    src_dir = temp_dir / "src"
+    src_dir.mkdir()
 
-        py_file = src_dir / "example.py"
-        py_file.write_text(
-            '"""Module docstring."""\n\ndef hello():\n    pass\n'
-        )
+    py_file = src_dir / "example.py"
+    py_file.write_text('"""Module docstring."""\n\ndef hello():\n    pass\n')
 
-        pyproject = temp_dir / "pyproject.toml"
-        pyproject.write_text(
-            f"""
+    pyproject = temp_dir / "pyproject.toml"
+    pyproject.write_text(
+        f"""
 [tool.docc]
 discovery = ["docc.python.discover"]
 build = ["docc.python.build"]
@@ -273,25 +270,24 @@ paths = ["{src_dir}"]
 [tool.docc.output]
 path = "docs"
 """
-        )
+    )
 
-        output_dir = temp_dir / "docs"
+    output_dir = temp_dir / "docs"
 
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(temp_dir)
-            main(["--output", str(output_dir)])
-        finally:
-            os.chdir(original_cwd)
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(temp_dir)
+        main(["--output", str(output_dir)])
+    finally:
+        os.chdir(original_cwd)
 
-        assert output_dir.exists(), "Output directory should be created"
+    assert output_dir.exists(), "Output directory should be created"
 
 
-class TestCliWithMinimalConfig:
-    def test_empty_project(self, temp_dir: Path) -> None:
-        pyproject = temp_dir / "pyproject.toml"
-        pyproject.write_text(
-            """
+def test_main_empty_project(temp_dir: Path) -> None:
+    pyproject = temp_dir / "pyproject.toml"
+    pyproject.write_text(
+        """
 [tool.docc]
 discovery = []
 build = []
@@ -301,36 +297,28 @@ context = []
 [tool.docc.output]
 path = "docs"
 """
-        )
+    )
 
-        output_dir = temp_dir / "docs"
+    output_dir = temp_dir / "docs"
 
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(temp_dir)
-            # main() should complete without raising exceptions
-            main(["--output", str(output_dir)])
-        finally:
-            os.chdir(original_cwd)
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(temp_dir)
+        main(["--output", str(output_dir)])
+    finally:
+        os.chdir(original_cwd)
 
-        # With no sources, the pipeline completes without producing output.
-        # This verifies empty configurations don't cause errors.
-        assert (
-            not output_dir.exists()
-        ), "No output should be created for empty project"
+    assert not output_dir.exists(), "No output should be created"
 
 
-class TestCliDuplicateContextProviders:
-    def test_duplicate_context_type_raises(self, temp_dir: Path) -> None:
+def test_main_duplicate_context_raises(temp_dir: Path) -> None:
+    """
+    When two context plugins provide the same type, main() raises
+    an Exception about the conflict.
+    """
+    pyproject = temp_dir / "pyproject.toml"
+    pyproject.write_text(
         """
-        When two context plugins provide the same type, main() raises
-        an Exception about the conflict (cli.py:97-103).
-        """
-        pyproject = temp_dir / "pyproject.toml"
-        # Use the same context plugin twice so provides() returns the
-        # same type for both entries.
-        pyproject.write_text(
-            """
 [tool.docc]
 discovery = []
 build = []
@@ -340,35 +328,32 @@ context = ["docc.references.context", "docc.references.context"]
 [tool.docc.output]
 path = "docs"
 """
-        )
+    )
 
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(temp_dir)
-            with pytest.raises(Exception, match="conflicts with"):
-                main(["--output", str(temp_dir / "docs")])
-        finally:
-            os.chdir(original_cwd)
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(temp_dir)
+        with pytest.raises(Exception, match="conflicts with"):
+            main(["--output", str(temp_dir / "docs")])
+    finally:
+        os.chdir(original_cwd)
 
 
-class TestCliDocumentNoExtension:
-    def test_document_without_extension_skipped(
-        self, temp_dir: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """
-        When a document has no extension (no OutputNode), the write
-        phase logs an error and skips it (cli.py:164-169).
-        """
-        pyproject = temp_dir / "pyproject.toml"
-        # Use python discover and build, but do NOT include any
-        # transform that adds an OutputNode, so extension() returns None.
-        src_dir = temp_dir / "src"
-        src_dir.mkdir()
-        py_file = src_dir / "example.py"
-        py_file.write_text('"""Module docstring."""\n')
+def test_main_document_without_extension_skipped(
+    temp_dir: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """
+    When a document has no extension (no OutputNode), the write
+    phase logs an error and skips it.
+    """
+    pyproject = temp_dir / "pyproject.toml"
+    src_dir = temp_dir / "src"
+    src_dir.mkdir()
+    py_file = src_dir / "example.py"
+    py_file.write_text('"""Module docstring."""\n')
 
-        pyproject.write_text(
-            f"""
+    pyproject.write_text(
+        f"""
 [tool.docc]
 discovery = ["docc.python.discover"]
 build = ["docc.python.build"]
@@ -381,19 +366,19 @@ paths = ["{src_dir}"]
 [tool.docc.output]
 path = "docs"
 """
-        )
+    )
 
-        output_dir = temp_dir / "docs"
+    output_dir = temp_dir / "docs"
 
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(temp_dir)
-            with caplog.at_level(logging.ERROR):
-                main(["--output", str(output_dir)])
-        finally:
-            os.chdir(original_cwd)
+    original_cwd = os.getcwd()
+    try:
+        os.chdir(temp_dir)
+        with caplog.at_level(logging.ERROR):
+            main(["--output", str(output_dir)])
+    finally:
+        os.chdir(original_cwd)
 
-        assert any(
-            "does not specify a file extension" in r.message
-            for r in caplog.records
-        )
+    assert any(
+        "does not specify a file extension" in r.message
+        for r in caplog.records
+    )

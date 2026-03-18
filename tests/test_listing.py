@@ -297,46 +297,43 @@ class TestListingDiscover:
         ), "Should create listing when Listable falls back to output_path"
 
 
-class TestRenderHtml:
-    def test_render_html_produces_links(self) -> None:
-        """Test that render_html produces correct HTML with relative links."""
-        entry_source = MockSource(
-            relative_path=PurePath("docs/api/module.py"),
-            output_path=PurePath("docs/api/module"),
-        )
-        listing_sources: Set[Source] = {entry_source}
-        listing_source = ListingSource(
-            PurePath("docs"),
-            PurePath("docs/index"),
-            listing_sources,
-        )
-        node = ListingNode(listing_sources)
+def test_render_html_produces_links() -> None:
+    """Test that render_html produces correct HTML with relative links."""
+    entry_source = MockSource(
+        relative_path=PurePath("docs/api/module.py"),
+        output_path=PurePath("docs/api/module"),
+    )
+    listing_sources: Set[Source] = {entry_source}
+    listing_source = ListingSource(
+        PurePath("docs"),
+        PurePath("docs/index"),
+        listing_sources,
+    )
+    node = ListingNode(listing_sources)
 
-        context = Context({Source: listing_source})
-        parent = HTMLTag("div")
+    context = Context({Source: listing_source})
+    parent = HTMLTag("div")
 
-        render_html(context, parent, node)
+    render_html(context, parent, node)
 
-        # Parent should now contain children from the template
-        children = list(parent.children)
-        assert (
-            len(children) > 0
-        ), "render_html should append children to parent"
+    # Parent should now contain children from the template
+    children = list(parent.children)
+    assert len(children) > 0, "render_html should append children to parent"
 
-        # Walk the HTML tree to find <a> tags with href attributes
-        def find_tags(node: object, tag_name: str) -> List[HTMLTag]:
-            results: List[HTMLTag] = []
-            if isinstance(node, HTMLTag):
-                if node.tag_name == tag_name:
-                    results.append(node)
-                for child in node.children:
-                    results.extend(find_tags(child, tag_name))
-            return results
+    # Walk the HTML tree to find <a> tags with href attributes
+    def find_tags(node: object, tag_name: str) -> List[HTMLTag]:
+        results: List[HTMLTag] = []
+        if isinstance(node, HTMLTag):
+            if node.tag_name == tag_name:
+                results.append(node)
+            for child in node.children:
+                results.extend(find_tags(child, tag_name))
+        return results
 
-        links = find_tags(parent, "a")
-        assert len(links) >= 1, "Should produce at least one link"
-        # The link should have an href attribute ending with .html
-        href = links[0].attributes.get("href") or ""
-        assert href.endswith(
-            ".html"
-        ), f"Link href should end with .html, got: {href}"
+    links = find_tags(parent, "a")
+    assert len(links) >= 1, "Should produce at least one link"
+    # The link should have an href attribute ending with .html
+    href = links[0].attributes.get("href") or ""
+    assert href.endswith(
+        ".html"
+    ), f"Link href should end with .html, got: {href}"

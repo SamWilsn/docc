@@ -490,16 +490,15 @@ class TestNameVisitor:
         assert result == []
 
 
-class TestPythonNodeChildrenTypeError:
-    def test_children_raises_type_error_for_non_node_field(self) -> None:
-        """
-        PythonNode.children raises TypeError when a field annotated
-        as Node contains a non-Node value. This documents the
-        defensive contract in nodes.py:44.
-        """
-        module = nodes.Module()
-        # Forcefully set a Node-typed field to a non-Node value
-        object.__setattr__(module, "name", "not a node")
+def test_python_node_children_type_error() -> None:
+    """
+    PythonNode.children raises TypeError when a field annotated
+    as Node contains a non-Node value. This documents the
+    defensive contract in nodes.py:44.
+    """
+    module = nodes.Module()
+    # Forcefully set a Node-typed field to a non-Node value
+    object.__setattr__(module, "name", "not a node")
 
-        with pytest.raises(TypeError, match="child not Node"):
-            list(module.children)
+    with pytest.raises(TypeError, match="child not Node"):
+        list(module.children)

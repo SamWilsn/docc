@@ -484,35 +484,33 @@ class SkipSpecificChildVisitor(Visitor):
         self.exit_calls.append(node)
 
 
-class TestSkipChildrenCallsExit:
-    def test_skip_children_calls_exit_on_skipped_child(self) -> None:
-        grandchild = BlankNode()
-        skipped_child = ListNode([grandchild])
-        other_child = BlankNode()
-        parent = ListNode([skipped_child, other_child])
+def test_visit_skip_children_calls_exit() -> None:
+    grandchild = BlankNode()
+    skipped_child = ListNode([grandchild])
+    other_child = BlankNode()
+    parent = ListNode([skipped_child, other_child])
 
-        visitor = SkipSpecificChildVisitor(skip_target=skipped_child)
-        parent.visit(visitor)
+    visitor = SkipSpecificChildVisitor(skip_target=skipped_child)
+    parent.visit(visitor)
 
-        # exit must be called for the child that returned SkipChildren
-        assert skipped_child in visitor.exit_calls
+    # exit must be called for the child that returned SkipChildren
+    assert skipped_child in visitor.exit_calls
 
-        # The grandchild should NOT have been entered (children were skipped)
-        assert grandchild not in visitor.enter_calls
+    # The grandchild should NOT have been entered (children were skipped)
+    assert grandchild not in visitor.enter_calls
 
-        # Both the skipped child and the other child should have exit called
-        assert other_child in visitor.exit_calls
-        assert parent in visitor.exit_calls
+    # Both the skipped child and the other child should have exit called
+    assert other_child in visitor.exit_calls
+    assert parent in visitor.exit_calls
 
 
-class TestVisitorModification:
-    def test_replace_during_exit(self) -> None:
-        old_child = BlankNode()
-        new_child = BlankNode()
-        parent = ListNode([old_child])
+def test_visit_replace_during_exit() -> None:
+    old_child = BlankNode()
+    new_child = BlankNode()
+    parent = ListNode([old_child])
 
-        visitor = ModifyingVisitor(old_child, new_child)
-        parent.visit(visitor)
+    visitor = ModifyingVisitor(old_child, new_child)
+    parent.visit(visitor)
 
-        assert old_child not in parent.children
-        assert new_child in parent.children
+    assert old_child not in parent.children
+    assert new_child in parent.children

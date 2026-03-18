@@ -171,10 +171,9 @@ class TestSearchSource:
         assert source.output_path == PurePath("search")
 
 
-class TestSearchNode:
-    def test_extension(self) -> None:
-        node = SearchNode()
-        assert node.extension == ".js"
+def test_search_node_extension() -> None:
+    node = SearchNode()
+    assert node.extension == ".js"
 
 
 class TestSearchBuilder:
@@ -206,15 +205,14 @@ class TestSearchBuilder:
         assert len(processed) == 0
 
 
-class TestSearchDiscover:
-    def test_discover_yields_search_source(
-        self, plugin_settings: PluginSettings
-    ) -> None:
-        discover = SearchDiscover(plugin_settings)
-        sources = list(discover.discover(frozenset()))
+def test_search_discover_yields_source(
+    plugin_settings: PluginSettings,
+) -> None:
+    discover = SearchDiscover(plugin_settings)
+    sources = list(discover.discover(frozenset()))
 
-        assert len(sources) == 1
-        assert isinstance(sources[0], SearchSource)
+    assert len(sources) == 1
+    assert isinstance(sources[0], SearchSource)
 
 
 class TestSearchContext:
@@ -366,32 +364,31 @@ class TestSearchNodeOutput:
         assert len(data) == 2
 
 
-class TestSearchTransform:
-    def test_transform_indexes_searchable_under_definition(
-        self, plugin_settings: PluginSettings
-    ) -> None:
-        """
-        Test that transform() indexes Searchable nodes wrapped in
-        Definitions as ByReference with the correct identifier.
-        """
-        source = MockSource(PurePath("test_transform.py"))
-        search = Search()
+def test_search_transform_indexes_searchable(
+    plugin_settings: PluginSettings,
+) -> None:
+    """
+    Test that transform() indexes Searchable nodes wrapped in
+    Definitions as ByReference with the correct identifier.
+    """
+    source = MockSource(PurePath("test_transform.py"))
+    search = Search()
 
-        searchable = MockSearchable("indexed content")
-        definition = Definition(identifier="my.module.MyClass")
-        definition.specifier = 0
-        definition.child = searchable
+    searchable = MockSearchable("indexed content")
+    definition = Definition(identifier="my.module.MyClass")
+    definition.specifier = 0
+    definition.child = searchable
 
-        document = Document(definition)
-        context = Context({Source: source, Search: search, Document: document})
+    document = Document(definition)
+    context = Context({Source: source, Search: search, Document: document})
 
-        transform = SearchTransform(plugin_settings)
-        transform.transform(context)
+    transform = SearchTransform(plugin_settings)
+    transform.transform(context)
 
-        # The searchable should be indexed as ByReference
-        by_ref = ByReference(identifier="my.module.MyClass", specifier=0)
-        assert by_ref in search._items
-        assert "indexed content" in search._items[by_ref]["text"]
+    # The searchable should be indexed as ByReference
+    by_ref = ByReference(identifier="my.module.MyClass", specifier=0)
+    assert by_ref in search._items
+    assert "indexed content" in search._items[by_ref]["text"]
 
 
 class MockSearchable(BlankNode, Searchable):
