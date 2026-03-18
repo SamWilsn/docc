@@ -144,6 +144,17 @@ class TestHTMLParserExtended:
         assert len(children) == 1
         assert isinstance(children[0], HTMLTag)
 
+    def test_parse_self_closing_tag_with_slash(self) -> None:
+        context = Context({})
+        parser = HTMLParser(context)
+        parser.feed("<br/>")
+
+        children = list(parser.root.children)
+        assert len(children) == 1
+        child = children[0]
+        assert isinstance(child, HTMLTag)
+        assert child.tag_name == "br"
+
     def test_parse_with_boolean_attribute(self) -> None:
         context = Context({})
         parser = HTMLParser(context)
