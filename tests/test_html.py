@@ -151,6 +151,19 @@ class TestHTMLTag:
         assert old not in children
         assert children.index(new) == 1
 
+    def test_replace_child_with_duplicate_children(self) -> None:
+        parent = HTMLTag("div")
+        child = HTMLTag("a")
+        parent.append(child)
+        parent.append(child)
+
+        new = HTMLTag("em")
+        parent.replace_child(child, new)
+
+        children = list(parent.children)
+        assert child not in children
+        assert children.count(new) == 2
+
     def test_repr_basic(self) -> None:
         tag = HTMLTag("div")
         assert repr(tag) == "<div>"
