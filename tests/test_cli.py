@@ -270,6 +270,10 @@ path = "docs"
     main(["--output", str(output_dir)])
 
     assert output_dir.exists(), "Output directory should be created"
+    html_files = list(output_dir.rglob("*.html"))
+    assert len(html_files) >= 1, "Should produce at least one HTML file"
+    content = html_files[0].read_text()
+    assert "Module docstring" in content
 
 
 def test_main_empty_project(

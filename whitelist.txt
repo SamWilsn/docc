@@ -73,6 +73,7 @@ ptag
 pyproject
 qualname
 removeprefix
+rglob
 renderer
 renderers
 repo
