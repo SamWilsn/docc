@@ -16,7 +16,7 @@
 import json
 from io import StringIO
 from pathlib import Path, PurePath
-from typing import Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 import pytest
 
@@ -229,6 +229,17 @@ class TestSearchContext:
         assert provided is ctx.search
 
 
+_PREFIX = "this.SEARCH_INDEX = "
+_SUFFIX = "; Object.freeze(this.SEARCH_INDEX);"
+
+
+def _parse_search_output(raw: str) -> List[Dict[str, Any]]:
+    """Extract and parse the JSON payload from SearchNode output."""
+    assert raw.startswith(_PREFIX)
+    assert raw.endswith(_SUFFIX)
+    return json.loads(raw[len(_PREFIX) : -len(_SUFFIX)])
+
+
 class TestSearchNodeOutput:
     def test_output_by_source(self) -> None:
         """
@@ -247,16 +258,7 @@ class TestSearchNodeOutput:
         dest = StringIO()
         node.output(context, dest)
 
-        output = dest.getvalue()
-        assert output.startswith("this.SEARCH_INDEX = ")
-        assert output.endswith("; Object.freeze(this.SEARCH_INDEX);")
-        # Parse the JSON portion
-        json_str = output[
-            len("this.SEARCH_INDEX = ") : -len(
-                "; Object.freeze(this.SEARCH_INDEX);"
-            )
-        ]
-        data = json.loads(json_str)
+        data = _parse_search_output(dest.getvalue())
         assert len(data) == 1
         assert data[0]["source"]["path"] == "module.py"
         assert "hello world" in data[0]["content"]["text"]
@@ -276,13 +278,7 @@ class TestSearchNodeOutput:
         dest = StringIO()
         node.output(context, dest)
 
-        output = dest.getvalue()
-        json_str = output[
-            len("this.SEARCH_INDEX = ") : -len(
-                "; Object.freeze(this.SEARCH_INDEX);"
-            )
-        ]
-        data = json.loads(json_str)
+        data = _parse_search_output(dest.getvalue())
         assert len(data) == 1
         assert data[0]["source"]["identifier"] == "my.module.func"
         assert data[0]["source"]["path"] == "ref_module.py"
@@ -302,13 +298,7 @@ class TestSearchNodeOutput:
         dest = StringIO()
         node.output(context, dest)
 
-        output = dest.getvalue()
-        json_str = output[
-            len("this.SEARCH_INDEX = ") : -len(
-                "; Object.freeze(this.SEARCH_INDEX);"
-            )
-        ]
-        data = json.loads(json_str)
+        data = _parse_search_output(dest.getvalue())
         assert len(data) == 1
         assert data[0]["source"]["specifier"] == 0
         assert data[0]["source"]["path"] == "spec_module.py"
@@ -354,13 +344,7 @@ class TestSearchNodeOutput:
         dest = StringIO()
         node.output(context, dest)
 
-        output = dest.getvalue()
-        json_str = output[
-            len("this.SEARCH_INDEX = ") : -len(
-                "; Object.freeze(this.SEARCH_INDEX);"
-            )
-        ]
-        data = json.loads(json_str)
+        data = _parse_search_output(dest.getvalue())
         assert len(data) == 2
 
 
