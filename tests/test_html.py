@@ -98,6 +98,14 @@ class TestTextNode:
         node = TextNode("hello world")
         assert repr(node) == "'hello world'"
 
+    def test_repr_with_double_quote(self) -> None:
+        node = TextNode('say "hello"')
+        assert repr(node) == "'say \"hello\"'"
+
+    def test_repr_with_single_quote(self) -> None:
+        node = TextNode("it's")
+        assert repr(node) == '"it\'s"'
+
 
 class TestHTMLTag:
     def test_init_basic(self) -> None:
