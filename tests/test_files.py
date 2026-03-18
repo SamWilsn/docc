@@ -53,6 +53,13 @@ class TestFileSource:
 
         assert source.output_path == PurePath("docs/readme")
 
+    def test_output_path_compound_extension(self) -> None:
+        relative = PurePath("docs/archive.tar.gz")
+        absolute = PurePath("/path/docs/archive.tar.gz")
+        source = FileSource(relative, absolute)
+
+        assert source.output_path == PurePath("docs/archive.tar")
+
     def test_output_path_no_suffix(self) -> None:
         relative = PurePath("docs/readme")
         absolute = PurePath("/path/docs/readme")
