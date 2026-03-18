@@ -222,17 +222,13 @@ class TestOutputVisitorWithNestedNodes:
     def test_multiple_output_nodes(self) -> None:
         first_node = MockOutputNode("first")
         second_node = MockOutputNode("second")
+        root = ListNode([first_node, second_node])
 
         context = Context({})
         destination = StringIO()
 
         visitor = _OutputVisitor(context, destination)
-
-        visitor.enter(first_node)
-        visitor.exit(first_node)
-
-        visitor.enter(second_node)
-        visitor.exit(second_node)
+        root.visit(visitor)
 
         assert destination.getvalue() == "firstsecond"
 
