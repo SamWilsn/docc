@@ -139,13 +139,17 @@ class TestHTMLTag:
 
     def test_replace_child(self) -> None:
         parent = HTMLTag("div")
+        before = HTMLTag("header")
         old = HTMLTag("span")
-        new = HTMLTag("p")
+        after = HTMLTag("footer")
+        parent.append(before)
         parent.append(old)
+        parent.append(after)
 
-        parent.replace_child(old, new)
-        assert old not in parent.children
-        assert new in parent.children
+        parent.replace_child(old, new := HTMLTag("p"))
+        children = list(parent.children)
+        assert old not in children
+        assert children.index(new) == 1
 
     def test_repr_basic(self) -> None:
         tag = HTMLTag("div")
