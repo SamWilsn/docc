@@ -121,15 +121,21 @@ class TestHTMLTag:
 
     def test_append_child(self) -> None:
         parent = HTMLTag("div")
+        existing = HTMLTag("p")
+        parent.append(existing)
         child = HTMLTag("span")
         parent.append(child)
-        assert child in parent.children
+        children = list(parent.children)
+        assert children[-1] is child
 
     def test_append_text(self) -> None:
         tag = HTMLTag("p")
+        existing = HTMLTag("span")
+        tag.append(existing)
         text = TextNode("hello")
         tag.append(text)
-        assert text in tag.children
+        children = list(tag.children)
+        assert children[-1] is text
 
     def test_replace_child(self) -> None:
         parent = HTMLTag("div")
