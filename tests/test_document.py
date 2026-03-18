@@ -32,6 +32,30 @@ from docc.document import (
 )
 
 
+@pytest.mark.parametrize(
+    "node, expected_repr",
+    [
+        (BlankNode(), "<blank>"),
+        (ListNode(), "<list>"),
+    ],
+    ids=["BlankNode", "ListNode"],
+)
+def test_node_children_iterable(node: Node, expected_repr: str) -> None:
+    assert hasattr(node.children, "__iter__")
+
+
+@pytest.mark.parametrize(
+    "node, expected_repr",
+    [
+        (BlankNode(), "<blank>"),
+        (ListNode(), "<list>"),
+    ],
+    ids=["BlankNode", "ListNode"],
+)
+def test_node_repr(node: Node, expected_repr: str) -> None:
+    assert repr(node) == expected_repr
+
+
 class TestBlankNode:
     def test_children_returns_empty_tuple(self) -> None:
         node = BlankNode()
@@ -41,10 +65,6 @@ class TestBlankNode:
         node = BlankNode()
         with pytest.raises(TypeError):
             node.replace_child(BlankNode(), BlankNode())
-
-    def test_repr(self) -> None:
-        node = BlankNode()
-        assert repr(node) == "<blank>"
 
     def test_bool_is_false(self) -> None:
         node = BlankNode()
@@ -79,10 +99,6 @@ class TestListNode:
 
         node.replace_child(old_child, new_child)
         assert list(node.children) == [other_child]
-
-    def test_repr(self) -> None:
-        node = ListNode()
-        assert repr(node) == "<list>"
 
     def test_bool_true_when_has_children(self) -> None:
         node = ListNode([BlankNode()])
