@@ -104,14 +104,19 @@ class TestMainFunction:
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("[tool.docc]\n")
 
         monkeypatch.chdir(tmp_path)
-        with pytest.raises(SystemExit) as exc_info:
-            main([])
+        with caplog.at_level(logging.CRITICAL):
+            with pytest.raises(SystemExit) as exc_info:
+                main([])
         assert exc_info.value.code == 1
+        assert any(
+            "Output path is required" in r.message for r in caplog.records
+        )
 
     def test_main_with_output_flag(
         self,
@@ -190,11 +195,11 @@ class TestOutputVisitorWithNestedNodes:
 
         class ContainerNode(OutputNode):
             @property
-            def children(self):  # type: ignore[override]
+            def children(self) -> Tuple[ListNode]:
                 return (outer_content,)
 
             def replace_child(self, old: Node, new: Node) -> None:
-                pass
+                raise NotImplementedError
 
             @property
             def extension(self) -> str:
