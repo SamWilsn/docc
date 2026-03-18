@@ -89,6 +89,19 @@ class TestContext:
         ctx = Context({Derived: d})
         assert ctx[Derived] is d
 
+    def test_base_and_derived_stored_separately(self) -> None:
+        class Base:
+            pass
+
+        class Derived(Base):
+            pass
+
+        b = Base()
+        d = Derived()
+        ctx = Context({Base: b, Derived: d})
+        assert ctx[Base] is b
+        assert ctx[Derived] is d
+
     def test_derived_stored_base_lookup_not_found(self) -> None:
         """
         When a Derived instance is stored under its Derived key,
