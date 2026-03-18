@@ -132,8 +132,9 @@ class TestFilesBuilder:
         builder = FilesBuilder(plugin_settings)
         builder.build(unprocessed, processed)
 
-        assert len(unprocessed) == 0
         assert source in processed
+        assert len(processed) == 1
+        assert len(unprocessed) == 0
         assert isinstance(processed[source].root, FileNode)
 
     def test_build_ignores_non_file_sources(
