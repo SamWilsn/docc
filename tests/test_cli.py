@@ -14,7 +14,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import logging
-import os
 from io import StringIO, TextIOBase
 from pathlib import Path
 from typing import Tuple
@@ -94,7 +93,6 @@ class TestOutputVisitor:
         visitor = _OutputVisitor(context, destination)
         result = visitor.exit(node)
 
-        # exit() should complete without modifying destination
         assert result is None, "exit() should return None"
         assert (
             destination.getvalue() == ""
@@ -102,21 +100,24 @@ class TestOutputVisitor:
 
 
 class TestMainFunction:
-    def test_main_requires_output_path(self, tmp_path: Path) -> None:
+    def test_main_requires_output_path(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("[tool.docc]\n")
 
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(tmp_path)
-            with pytest.raises(SystemExit) as exc_info:
-                main([])
-            assert exc_info.value.code == 1
-        finally:
-            os.chdir(original_cwd)
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(SystemExit) as exc_info:
+            main([])
+        assert exc_info.value.code == 1
 
-    def test_main_with_output_flag(self, tmp_path: Path) -> None:
-        # Create a minimal Python file to discover and process
+    def test_main_with_output_flag(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         src_dir = tmp_path / "src"
         src_dir.mkdir()
         py_file = src_dir / "example.py"
@@ -141,17 +142,16 @@ path = "docs"
 
         output_dir = tmp_path / "output"
 
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(tmp_path)
-            main(["--output", str(output_dir)])
-        finally:
-            os.chdir(original_cwd)
+        monkeypatch.chdir(tmp_path)
+        main(["--output", str(output_dir)])
 
         assert output_dir.exists(), "Output directory should be created"
 
-    def test_main_uses_settings_output_path(self, tmp_path: Path) -> None:
-        # Create a minimal Python file to discover and process
+    def test_main_uses_settings_output_path(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         src_dir = tmp_path / "src"
         src_dir.mkdir()
         py_file = src_dir / "example.py"
@@ -175,12 +175,8 @@ path = "{output_dir}"
 """
         )
 
-        original_cwd = os.getcwd()
-        try:
-            os.chdir(tmp_path)
-            main([])
-        finally:
-            os.chdir(original_cwd)
+        monkeypatch.chdir(tmp_path)
+        main([])
 
         assert (
             output_dir.exists()
@@ -194,7 +190,7 @@ class TestOutputVisitorWithNestedNodes:
 
         class ContainerNode(OutputNode):
             @property
-            def children(self):
+            def children(self):  # type: ignore[override]
                 return (outer_content,)
 
             def replace_child(self, old: Node, new: Node) -> None:
@@ -236,7 +232,9 @@ class TestOutputVisitorWithNestedNodes:
         assert destination.getvalue() == "firstsecond"
 
 
-def test_main_processes_python_source(tmp_path: Path) -> None:
+def test_main_processes_python_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     src_dir = tmp_path / "src"
     src_dir.mkdir()
 
@@ -267,17 +265,15 @@ path = "docs"
 
     output_dir = tmp_path / "docs"
 
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(tmp_path)
-        main(["--output", str(output_dir)])
-    finally:
-        os.chdir(original_cwd)
+    monkeypatch.chdir(tmp_path)
+    main(["--output", str(output_dir)])
 
     assert output_dir.exists(), "Output directory should be created"
 
 
-def test_main_empty_project(tmp_path: Path) -> None:
+def test_main_empty_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
         """
@@ -294,17 +290,15 @@ path = "docs"
 
     output_dir = tmp_path / "docs"
 
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(tmp_path)
-        main(["--output", str(output_dir)])
-    finally:
-        os.chdir(original_cwd)
+    monkeypatch.chdir(tmp_path)
+    main(["--output", str(output_dir)])
 
     assert not output_dir.exists(), "No output should be created"
 
 
-def test_main_duplicate_context_raises(tmp_path: Path) -> None:
+def test_main_duplicate_context_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """
     When two context plugins provide the same type, main() raises
     an Exception about the conflict.
@@ -323,17 +317,15 @@ path = "docs"
 """
     )
 
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(tmp_path)
-        with pytest.raises(Exception, match="conflicts with"):
-            main(["--output", str(tmp_path / "docs")])
-    finally:
-        os.chdir(original_cwd)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(Exception, match="conflicts with"):
+        main(["--output", str(tmp_path / "docs")])
 
 
 def test_main_document_without_extension_skipped(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """
     When a document has no extension (no OutputNode), the write
@@ -363,13 +355,9 @@ path = "docs"
 
     output_dir = tmp_path / "docs"
 
-    original_cwd = os.getcwd()
-    try:
-        os.chdir(tmp_path)
-        with caplog.at_level(logging.ERROR):
-            main(["--output", str(output_dir)])
-    finally:
-        os.chdir(original_cwd)
+    monkeypatch.chdir(tmp_path)
+    with caplog.at_level(logging.ERROR):
+        main(["--output", str(output_dir)])
 
     assert any(
         "does not specify a file extension" in r.message
