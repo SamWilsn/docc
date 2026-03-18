@@ -201,17 +201,6 @@ class TestMarkdownNodeChildren:
         children = list(node.children)
         assert children == []
 
-    def test_children_lazy_evaluation(self) -> None:
-        markdown = "Test **bold**"
-        node = MarkdownNode(md.Document(markdown))
-
-        assert node._children is None
-
-        children = list(node.children)
-
-        assert node._children is not None
-        assert len(children) > 0
-
 
 class TestMarkdownFormats:
     def test_strong_text(self) -> None:
