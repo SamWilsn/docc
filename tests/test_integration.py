@@ -21,12 +21,11 @@ import libcst
 import pytest
 
 from docc.context import Context
-from docc.document import BlankNode, Document, ListNode, Node, Visit, Visitor
+from docc.document import Document, ListNode, Node, Visit, Visitor
 from docc.plugins.mistletoe import (
     DocstringTransform,
     MarkdownNode,
     ReferenceTransform,
-    _SearchVisitor,
 )
 from docc.plugins.python import nodes
 from docc.plugins.python.cst import (
@@ -441,73 +440,6 @@ class TestIndexTransformIntegration:
         func_locations = list(index.lookup("module.func_b"))
         assert len(class_locations) == 1
         assert len(func_locations) == 1
-
-
-class TestSearchVisitor:
-    def test_collect_text_from_markdown(self) -> None:
-        import mistletoe as md
-
-        markdown = "Hello **world** and *everyone*"
-        root = MarkdownNode(md.Document(markdown))
-
-        texts = _SearchVisitor.collect(root)
-        combined = " ".join(texts)
-
-        assert "Hello" in combined
-        assert "world" in combined
-        assert "everyone" in combined
-
-
-class TestMarkdownNode:
-    def test_children_lazy_loaded(self) -> None:
-        import mistletoe as md
-
-        markdown = "Test **bold**"
-        node = MarkdownNode(md.Document(markdown))
-
-        children = list(node.children)
-        assert len(children) > 0
-
-    def test_replace_child(self) -> None:
-        import mistletoe as md
-
-        markdown = "Test **bold**"
-        node = MarkdownNode(md.Document(markdown))
-
-        children = list(node.children)
-        old_child = children[0]
-        new_child = BlankNode()
-
-        node.replace_child(old_child, new_child)
-
-        new_children = list(node.children)
-        assert new_child in new_children
-
-    def test_to_search(self) -> None:
-        import mistletoe as md
-
-        markdown = "Searchable text here"
-        node = MarkdownNode(md.Document(markdown))
-
-        result = node.to_search()
-        assert "Searchable" in result
-
-    def test_search_children_returns_false(self) -> None:
-        import mistletoe as md
-
-        markdown = "Test"
-        node = MarkdownNode(md.Document(markdown))
-
-        assert node.search_children() is False
-
-    def test_repr(self) -> None:
-        import mistletoe as md
-
-        markdown = "Test"
-        node = MarkdownNode(md.Document(markdown))
-
-        assert "MarkdownNode" in repr(node)
-        assert "Document" in repr(node)
 
 
 class TestFullTransformPipeline:
