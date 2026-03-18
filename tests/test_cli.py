@@ -15,10 +15,9 @@
 
 import logging
 import os
-import tempfile
 from io import StringIO, TextIOBase
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Tuple
 
 import pytest
 
@@ -31,12 +30,6 @@ from docc.document import (
     OutputNode,
     Visit,
 )
-
-
-@pytest.fixture
-def temp_dir() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as td:
-        yield Path(td)
 
 
 class MockOutputNode(OutputNode):
@@ -109,27 +102,27 @@ class TestOutputVisitor:
 
 
 class TestMainFunction:
-    def test_main_requires_output_path(self, temp_dir: Path) -> None:
-        pyproject = temp_dir / "pyproject.toml"
+    def test_main_requires_output_path(self, tmp_path: Path) -> None:
+        pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text("[tool.docc]\n")
 
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_dir)
+            os.chdir(tmp_path)
             with pytest.raises(SystemExit) as exc_info:
                 main([])
             assert exc_info.value.code == 1
         finally:
             os.chdir(original_cwd)
 
-    def test_main_with_output_flag(self, temp_dir: Path) -> None:
+    def test_main_with_output_flag(self, tmp_path: Path) -> None:
         # Create a minimal Python file to discover and process
-        src_dir = temp_dir / "src"
+        src_dir = tmp_path / "src"
         src_dir.mkdir()
         py_file = src_dir / "example.py"
         py_file.write_text('"""Module docstring."""\n')
 
-        pyproject = temp_dir / "pyproject.toml"
+        pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text(
             f"""
 [tool.docc]
@@ -146,26 +139,26 @@ path = "docs"
 """
         )
 
-        output_dir = temp_dir / "output"
+        output_dir = tmp_path / "output"
 
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_dir)
+            os.chdir(tmp_path)
             main(["--output", str(output_dir)])
         finally:
             os.chdir(original_cwd)
 
         assert output_dir.exists(), "Output directory should be created"
 
-    def test_main_uses_settings_output_path(self, temp_dir: Path) -> None:
+    def test_main_uses_settings_output_path(self, tmp_path: Path) -> None:
         # Create a minimal Python file to discover and process
-        src_dir = temp_dir / "src"
+        src_dir = tmp_path / "src"
         src_dir.mkdir()
         py_file = src_dir / "example.py"
         py_file.write_text('"""Module docstring."""\n')
 
-        output_dir = temp_dir / "docs"
-        pyproject = temp_dir / "pyproject.toml"
+        output_dir = tmp_path / "docs"
+        pyproject = tmp_path / "pyproject.toml"
         pyproject.write_text(
             f"""
 [tool.docc]
@@ -184,7 +177,7 @@ path = "{output_dir}"
 
         original_cwd = os.getcwd()
         try:
-            os.chdir(temp_dir)
+            os.chdir(tmp_path)
             main([])
         finally:
             os.chdir(original_cwd)
@@ -243,14 +236,14 @@ class TestOutputVisitorWithNestedNodes:
         assert destination.getvalue() == "firstsecond"
 
 
-def test_main_processes_python_source(temp_dir: Path) -> None:
-    src_dir = temp_dir / "src"
+def test_main_processes_python_source(tmp_path: Path) -> None:
+    src_dir = tmp_path / "src"
     src_dir.mkdir()
 
     py_file = src_dir / "example.py"
     py_file.write_text('"""Module docstring."""\n\ndef hello():\n    pass\n')
 
-    pyproject = temp_dir / "pyproject.toml"
+    pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
         f"""
 [tool.docc]
@@ -272,11 +265,11 @@ path = "docs"
 """
     )
 
-    output_dir = temp_dir / "docs"
+    output_dir = tmp_path / "docs"
 
     original_cwd = os.getcwd()
     try:
-        os.chdir(temp_dir)
+        os.chdir(tmp_path)
         main(["--output", str(output_dir)])
     finally:
         os.chdir(original_cwd)
@@ -284,8 +277,8 @@ path = "docs"
     assert output_dir.exists(), "Output directory should be created"
 
 
-def test_main_empty_project(temp_dir: Path) -> None:
-    pyproject = temp_dir / "pyproject.toml"
+def test_main_empty_project(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
         """
 [tool.docc]
@@ -299,11 +292,11 @@ path = "docs"
 """
     )
 
-    output_dir = temp_dir / "docs"
+    output_dir = tmp_path / "docs"
 
     original_cwd = os.getcwd()
     try:
-        os.chdir(temp_dir)
+        os.chdir(tmp_path)
         main(["--output", str(output_dir)])
     finally:
         os.chdir(original_cwd)
@@ -311,12 +304,12 @@ path = "docs"
     assert not output_dir.exists(), "No output should be created"
 
 
-def test_main_duplicate_context_raises(temp_dir: Path) -> None:
+def test_main_duplicate_context_raises(tmp_path: Path) -> None:
     """
     When two context plugins provide the same type, main() raises
     an Exception about the conflict.
     """
-    pyproject = temp_dir / "pyproject.toml"
+    pyproject = tmp_path / "pyproject.toml"
     pyproject.write_text(
         """
 [tool.docc]
@@ -332,22 +325,22 @@ path = "docs"
 
     original_cwd = os.getcwd()
     try:
-        os.chdir(temp_dir)
+        os.chdir(tmp_path)
         with pytest.raises(Exception, match="conflicts with"):
-            main(["--output", str(temp_dir / "docs")])
+            main(["--output", str(tmp_path / "docs")])
     finally:
         os.chdir(original_cwd)
 
 
 def test_main_document_without_extension_skipped(
-    temp_dir: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """
     When a document has no extension (no OutputNode), the write
     phase logs an error and skips it.
     """
-    pyproject = temp_dir / "pyproject.toml"
-    src_dir = temp_dir / "src"
+    pyproject = tmp_path / "pyproject.toml"
+    src_dir = tmp_path / "src"
     src_dir.mkdir()
     py_file = src_dir / "example.py"
     py_file.write_text('"""Module docstring."""\n')
@@ -368,11 +361,11 @@ path = "docs"
 """
     )
 
-    output_dir = temp_dir / "docs"
+    output_dir = tmp_path / "docs"
 
     original_cwd = os.getcwd()
     try:
-        os.chdir(temp_dir)
+        os.chdir(tmp_path)
         with caplog.at_level(logging.ERROR):
             main(["--output", str(output_dir)])
     finally:

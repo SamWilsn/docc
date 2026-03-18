@@ -13,9 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import tempfile
 from pathlib import Path, PurePath
-from typing import Iterator, Optional
+from typing import Optional
 
 import pytest
 
@@ -35,14 +34,8 @@ from docc.source import Source
 
 
 @pytest.fixture
-def temp_dir() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as td:
-        yield Path(td)
-
-
-@pytest.fixture
-def basic_settings(temp_dir: Path) -> Settings:
-    return Settings(temp_dir, {"tool": {"docc": {}}})
+def basic_settings(tmp_path: Path) -> Settings:
+    return Settings(tmp_path, {"tool": {"docc": {}}})
 
 
 @pytest.fixture

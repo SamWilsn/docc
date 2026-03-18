@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -111,42 +110,39 @@ class TestContext:
 
 
 class TestContextLoad:
-    def test_load_empty_context_list(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            settings = Settings(
-                Path(td),
-                {"tool": {"docc": {"context": []}}},
-            )
+    def test_load_empty_context_list(self, tmp_path: Path) -> None:
+        settings = Settings(
+            tmp_path,
+            {"tool": {"docc": {"context": []}}},
+        )
 
-            result = list(load(settings))
-            assert result == []
+        result = list(load(settings))
+        assert result == []
 
-    def test_load_single_context(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            settings = Settings(
-                Path(td),
-                {"tool": {"docc": {"context": ["docc.references.context"]}}},
-            )
+    def test_load_single_context(self, tmp_path: Path) -> None:
+        settings = Settings(
+            tmp_path,
+            {"tool": {"docc": {"context": ["docc.references.context"]}}},
+        )
 
-            result = list(load(settings))
-            assert len(result) == 1
-            assert result[0][0] == "docc.references.context"
+        result = list(load(settings))
+        assert len(result) == 1
+        assert result[0][0] == "docc.references.context"
 
-    def test_load_multiple_contexts(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            settings = Settings(
-                Path(td),
-                {
-                    "tool": {
-                        "docc": {
-                            "context": [
-                                "docc.references.context",
-                                "docc.search.context",
-                            ]
-                        }
+    def test_load_multiple_contexts(self, tmp_path: Path) -> None:
+        settings = Settings(
+            tmp_path,
+            {
+                "tool": {
+                    "docc": {
+                        "context": [
+                            "docc.references.context",
+                            "docc.search.context",
+                        ]
                     }
-                },
-            )
+                }
+            },
+        )
 
-            result = list(load(settings))
-            assert len(result) == 2
+        result = list(load(settings))
+        assert len(result) == 2

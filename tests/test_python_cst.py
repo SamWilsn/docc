@@ -13,8 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import tempfile
-from collections.abc import Iterator
 from pathlib import Path, PurePath
 from typing import Dict, Mapping, Set
 
@@ -32,29 +30,23 @@ from docc.source import Source
 
 
 @pytest.fixture
-def temp_dir() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as td:
-        yield Path(td)
-
-
-@pytest.fixture
-def settings_with_paths(temp_dir: Path) -> Settings:
+def settings_with_paths(tmp_path: Path) -> Settings:
     settings_dict: Dict[str, object] = {
         "tool": {
             "docc": {
                 "plugins": {
-                    "docc.python.discover": {"paths": [str(temp_dir)]},
+                    "docc.python.discover": {"paths": [str(tmp_path)]},
                 }
             }
         }
     }
-    return Settings(temp_dir, settings_dict)
+    return Settings(tmp_path, settings_dict)
 
 
 class TestPythonDiscover:
-    def test_init_raises_on_non_sequence_paths(self, temp_dir: Path) -> None:
+    def test_init_raises_on_non_sequence_paths(self, tmp_path: Path) -> None:
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
@@ -68,9 +60,9 @@ class TestPythonDiscover:
         with pytest.raises(TypeError, match="paths must be a list"):
             PythonDiscover(plugin_settings)
 
-    def test_init_raises_on_non_string_path(self, temp_dir: Path) -> None:
+    def test_init_raises_on_non_string_path(self, tmp_path: Path) -> None:
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
@@ -86,9 +78,9 @@ class TestPythonDiscover:
         ):
             PythonDiscover(plugin_settings)
 
-    def test_init_raises_on_empty_paths(self, temp_dir: Path) -> None:
+    def test_init_raises_on_empty_paths(self, tmp_path: Path) -> None:
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
@@ -102,16 +94,16 @@ class TestPythonDiscover:
         with pytest.raises(ValueError, match="python needs at least one path"):
             PythonDiscover(plugin_settings)
 
-    def test_discover_finds_python_files(self, temp_dir: Path) -> None:
-        (temp_dir / "test.py").write_text("# test")
+    def test_discover_finds_python_files(self, tmp_path: Path) -> None:
+        (tmp_path / "test.py").write_text("# test")
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]}
+                            "docc.python.discover": {"paths": [str(tmp_path)]}
                         }
                     }
                 }
@@ -124,18 +116,18 @@ class TestPythonDiscover:
         assert len(sources) == 1
         assert isinstance(sources[0], PythonSource)
 
-    def test_discover_finds_nested_python_files(self, temp_dir: Path) -> None:
-        subdir = temp_dir / "subdir"
+    def test_discover_finds_nested_python_files(self, tmp_path: Path) -> None:
+        subdir = tmp_path / "subdir"
         subdir.mkdir()
         (subdir / "nested.py").write_text("# nested")
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]}
+                            "docc.python.discover": {"paths": [str(tmp_path)]}
                         }
                     }
                 }
@@ -148,20 +140,20 @@ class TestPythonDiscover:
         assert len(sources) == 1
         assert "nested.py" in str(sources[0].relative_path)
 
-    def test_excluded_paths(self, temp_dir: Path) -> None:
-        subdir = temp_dir / "exclude_me"
+    def test_excluded_paths(self, tmp_path: Path) -> None:
+        subdir = tmp_path / "exclude_me"
         subdir.mkdir()
         (subdir / "test.py").write_text("# excluded")
-        (temp_dir / "keep.py").write_text("# keep")
+        (tmp_path / "keep.py").write_text("# keep")
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
                             "docc.python.discover": {
-                                "paths": [str(temp_dir)],
+                                "paths": [str(tmp_path)],
                                 "excluded_paths": ["exclude_me"],
                             }
                         }
@@ -176,15 +168,15 @@ class TestPythonDiscover:
         assert len(sources) == 1
         assert "keep.py" in str(sources[0].relative_path)
 
-    def test_excluded_paths_non_sequence_raises(self, temp_dir: Path) -> None:
+    def test_excluded_paths_non_sequence_raises(self, tmp_path: Path) -> None:
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
                             "docc.python.discover": {
-                                "paths": [str(temp_dir)],
+                                "paths": [str(tmp_path)],
                                 "excluded_paths": 123,
                             }
                         }
@@ -199,48 +191,48 @@ class TestPythonDiscover:
 
 
 class TestPythonSource:
-    def test_relative_path_property(self, temp_dir: Path) -> None:
+    def test_relative_path_property(self, tmp_path: Path) -> None:
         relative = PurePath("test.py")
-        absolute = temp_dir / "test.py"
+        absolute = tmp_path / "test.py"
         absolute.write_text("# test")
 
-        source = PythonSource(temp_dir, relative, absolute)
+        source = PythonSource(tmp_path, relative, absolute)
         assert source.relative_path == relative
 
-    def test_output_path_property(self, temp_dir: Path) -> None:
+    def test_output_path_property(self, tmp_path: Path) -> None:
         relative = PurePath("subdir") / "test.py"
-        absolute = temp_dir / "subdir" / "test.py"
+        absolute = tmp_path / "subdir" / "test.py"
         absolute.parent.mkdir(exist_ok=True)
         absolute.write_text("# test")
 
-        source = PythonSource(temp_dir, relative, absolute)
+        source = PythonSource(tmp_path, relative, absolute)
         assert source.output_path == relative
 
-    def test_open_returns_file_handle(self, temp_dir: Path) -> None:
+    def test_open_returns_file_handle(self, tmp_path: Path) -> None:
         content = "# test content\nx = 1"
         relative = PurePath("test.py")
-        absolute = temp_dir / "test.py"
+        absolute = tmp_path / "test.py"
         absolute.write_text(content)
 
-        source = PythonSource(temp_dir, relative, absolute)
+        source = PythonSource(tmp_path, relative, absolute)
         with source.open() as f:
             assert f.read() == content
 
 
 class TestPythonBuilder:
-    def test_build_simple_module(self, temp_dir: Path) -> None:
+    def test_build_simple_module(self, tmp_path: Path) -> None:
         content = '''"""Module docstring."""
 x = 1
 '''
-        (temp_dir / "test.py").write_text(content)
+        (tmp_path / "test.py").write_text(content)
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]}
+                            "docc.python.discover": {"paths": [str(tmp_path)]}
                         }
                     }
                 }
@@ -257,17 +249,17 @@ x = 1
         assert len(documents) == 1
 
     def test_build_removes_sources_from_unprocessed(
-        self, temp_dir: Path
+        self, tmp_path: Path
     ) -> None:
-        (temp_dir / "test.py").write_text("x = 1")
+        (tmp_path / "test.py").write_text("x = 1")
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]}
+                            "docc.python.discover": {"paths": [str(tmp_path)]}
                         }
                     }
                 }

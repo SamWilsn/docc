@@ -13,9 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import tempfile
 from pathlib import Path, PurePath
-from typing import Dict, Iterator, List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import pytest
 
@@ -35,14 +34,8 @@ from docc.source import Source
 
 
 @pytest.fixture
-def temp_dir() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as td:
-        yield Path(td)
-
-
-@pytest.fixture
-def plugin_settings(temp_dir: Path) -> PluginSettings:
-    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+def plugin_settings(tmp_path: Path) -> PluginSettings:
+    settings = Settings(tmp_path, {"tool": {"docc": {}}})
     return settings.for_plugin("docc.listing.discover")
 
 

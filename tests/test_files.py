@@ -13,10 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import tempfile
 from io import StringIO
 from pathlib import Path, PurePath
-from typing import Dict, Iterator, Optional, Set
+from typing import Dict, Optional, Set
 
 import pytest
 
@@ -33,14 +32,8 @@ from docc.source import Source
 
 
 @pytest.fixture
-def temp_dir() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as td:
-        yield Path(td)
-
-
-@pytest.fixture
-def plugin_settings(temp_dir: Path) -> PluginSettings:
-    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+def plugin_settings(tmp_path: Path) -> PluginSettings:
+    settings = Settings(tmp_path, {"tool": {"docc": {}}})
     return settings.for_plugin("docc.files.discover")
 
 
@@ -69,44 +62,44 @@ class TestFileSource:
 
 
 class TestFileNode:
-    def test_init(self, temp_dir: Path) -> None:
-        file_path = temp_dir / "test.txt"
+    def test_init(self, tmp_path: Path) -> None:
+        file_path = tmp_path / "test.txt"
         file_path.write_text("content")
 
         node = FileNode(file_path)
         assert node.path == file_path
 
-    def test_children_empty(self, temp_dir: Path) -> None:
-        file_path = temp_dir / "test.txt"
+    def test_children_empty(self, tmp_path: Path) -> None:
+        file_path = tmp_path / "test.txt"
         file_path.write_text("content")
 
         node = FileNode(file_path)
         assert node.children == ()
 
-    def test_replace_child_raises(self, temp_dir: Path) -> None:
-        file_path = temp_dir / "test.txt"
+    def test_replace_child_raises(self, tmp_path: Path) -> None:
+        file_path = tmp_path / "test.txt"
         file_path.write_text("content")
 
         node = FileNode(file_path)
         with pytest.raises(TypeError):
             node.replace_child(BlankNode(), BlankNode())
 
-    def test_extension(self, temp_dir: Path) -> None:
-        file_path = temp_dir / "test.txt"
+    def test_extension(self, tmp_path: Path) -> None:
+        file_path = tmp_path / "test.txt"
         file_path.write_text("content")
 
         node = FileNode(file_path)
         assert node.extension == ".txt"
 
-    def test_extension_multiple_suffixes(self, temp_dir: Path) -> None:
-        file_path = temp_dir / "archive.tar.gz"
+    def test_extension_multiple_suffixes(self, tmp_path: Path) -> None:
+        file_path = tmp_path / "archive.tar.gz"
         file_path.write_text("content")
 
         node = FileNode(file_path)
         assert node.extension == ".gz"
 
-    def test_output(self, temp_dir: Path) -> None:
-        file_path = temp_dir / "test.txt"
+    def test_output(self, tmp_path: Path) -> None:
+        file_path = tmp_path / "test.txt"
         file_path.write_text("file content here")
 
         node = FileNode(file_path)
@@ -120,9 +113,9 @@ class TestFileNode:
 
 class TestFilesBuilder:
     def test_build_processes_file_sources(
-        self, temp_dir: Path, plugin_settings: PluginSettings
+        self, tmp_path: Path, plugin_settings: PluginSettings
     ) -> None:
-        file_path = temp_dir / "test.txt"
+        file_path = tmp_path / "test.txt"
         file_path.write_text("content")
 
         source = FileSource(PurePath("test.txt"), file_path)
@@ -160,21 +153,21 @@ class TestFilesBuilder:
 
 
 class TestFilesDiscover:
-    def test_init_no_files(self, temp_dir: Path) -> None:
-        settings = Settings(temp_dir, {"tool": {"docc": {}}})
+    def test_init_no_files(self, tmp_path: Path) -> None:
+        settings = Settings(tmp_path, {"tool": {"docc": {}}})
         plugin_settings = settings.for_plugin("docc.files.discover")
 
         discover = FilesDiscover(plugin_settings)
         assert discover.sources == []
 
-    def test_init_with_files(self, temp_dir: Path) -> None:
-        first_file = temp_dir / "file1.txt"
+    def test_init_with_files(self, tmp_path: Path) -> None:
+        first_file = tmp_path / "file1.txt"
         first_file.write_text("content1")
-        second_file = temp_dir / "file2.txt"
+        second_file = tmp_path / "file2.txt"
         second_file.write_text("content2")
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
@@ -192,12 +185,12 @@ class TestFilesDiscover:
         discover = FilesDiscover(plugin_settings)
         assert len(discover.sources) == 2
 
-    def test_discover_yields_sources(self, temp_dir: Path) -> None:
-        first_file = temp_dir / "file1.txt"
+    def test_discover_yields_sources(self, tmp_path: Path) -> None:
+        first_file = tmp_path / "file1.txt"
         first_file.write_text("content")
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
@@ -216,8 +209,8 @@ class TestFilesDiscover:
         assert len(sources) == 1
         assert isinstance(sources[0], FileSource)
 
-    def test_discover_empty_when_no_files(self, temp_dir: Path) -> None:
-        settings = Settings(temp_dir, {"tool": {"docc": {}}})
+    def test_discover_empty_when_no_files(self, tmp_path: Path) -> None:
+        settings = Settings(tmp_path, {"tool": {"docc": {}}})
         plugin_settings = settings.for_plugin("docc.files.discover")
 
         discover = FilesDiscover(plugin_settings)

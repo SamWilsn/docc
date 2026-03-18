@@ -13,9 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import tempfile
 from pathlib import Path, PurePath
-from typing import Dict, Iterator, List, Optional, Set, Tuple, Type
+from typing import Dict, List, Optional, Set, Tuple, Type
 
 import libcst
 import pytest
@@ -41,12 +40,6 @@ from docc.plugins.references import (
 )
 from docc.settings import PluginSettings, Settings
 from docc.source import Source
-
-
-@pytest.fixture
-def temp_dir() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as td:
-        yield Path(td)
 
 
 class MockSource(Source):
@@ -98,20 +91,20 @@ class NodeCollector(Visitor):
 
 
 def _run_pipeline(
-    temp_dir: Path,
+    tmp_path: Path,
     py_content: str,
     filename: str = "example.py",
 ) -> Tuple[Document, Source, Context]:
     """Helper: write source, discover, build, and transform."""
-    (temp_dir / filename).write_text(py_content)
+    (tmp_path / filename).write_text(py_content)
 
     settings = Settings(
-        temp_dir,
+        tmp_path,
         {
             "tool": {
                 "docc": {
                     "plugins": {
-                        "docc.python.discover": {"paths": [str(temp_dir)]},
+                        "docc.python.discover": {"paths": [str(tmp_path)]},
                         "docc.python.transform": {},
                     }
                 }
@@ -141,7 +134,7 @@ def _run_pipeline(
 
 
 class TestPythonPipeline:
-    def test_discover_build_transform_pipeline(self, temp_dir: Path) -> None:
+    def test_discover_build_transform_pipeline(self, tmp_path: Path) -> None:
         py_content = '''"""Module docstring."""
 
 class MyClass:
@@ -156,15 +149,15 @@ def standalone_func(arg: str) -> None:
     """Standalone function."""
     pass
 '''
-        (temp_dir / "example.py").write_text(py_content)
+        (tmp_path / "example.py").write_text(py_content)
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]},
+                            "docc.python.discover": {"paths": [str(tmp_path)]},
                             "docc.python.transform": {},
                         }
                     }
@@ -256,7 +249,7 @@ def standalone_func(arg: str) -> None:
         else:
             raise AssertionError("Function 'method' not found")
 
-    def test_python_with_docstring_transform(self, temp_dir: Path) -> None:
+    def test_python_with_docstring_transform(self, tmp_path: Path) -> None:
         py_content = '''"""
 Module with **markdown** docstring.
 """
@@ -265,15 +258,15 @@ def func():
     """Function with *emphasis*."""
     pass
 '''
-        (temp_dir / "markdown_example.py").write_text(py_content)
+        (tmp_path / "markdown_example.py").write_text(py_content)
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]},
+                            "docc.python.discover": {"paths": [str(tmp_path)]},
                         }
                     }
                 }
@@ -441,7 +434,7 @@ def test_index_transform_indexes_definitions() -> None:
     assert len(func_locations) == 1
 
 
-def test_pipeline_python_to_html_references(temp_dir: Path) -> None:
+def test_pipeline_python_to_html_references(tmp_path: Path) -> None:
     py_content = '''"""
 Module with references.
 
@@ -452,15 +445,15 @@ def other():
     """Another function."""
     pass
 '''
-    (temp_dir / "references.py").write_text(py_content)
+    (tmp_path / "references.py").write_text(py_content)
 
     settings = Settings(
-        temp_dir,
+        tmp_path,
         {
             "tool": {
                 "docc": {
                     "plugins": {
-                        "docc.python.discover": {"paths": [str(temp_dir)]},
+                        "docc.python.discover": {"paths": [str(tmp_path)]},
                     }
                 }
             }
@@ -521,16 +514,16 @@ def other():
 
 
 class TestEdgeCases:
-    def test_empty_python_file(self, temp_dir: Path) -> None:
-        (temp_dir / "empty.py").write_text("")
+    def test_empty_python_file(self, tmp_path: Path) -> None:
+        (tmp_path / "empty.py").write_text("")
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]},
+                            "docc.python.discover": {"paths": [str(tmp_path)]},
                         }
                     }
                 }
@@ -585,16 +578,16 @@ class TestEdgeCases:
             len(collector.get(nodes.Docstring)) == 0
         ), "Empty module should have no docstrings"
 
-    def test_python_with_syntax_error_handled(self, temp_dir: Path) -> None:
-        (temp_dir / "syntax_error.py").write_text("def broken(\n")
+    def test_python_with_syntax_error_handled(self, tmp_path: Path) -> None:
+        (tmp_path / "syntax_error.py").write_text("def broken(\n")
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]},
+                            "docc.python.discover": {"paths": [str(tmp_path)]},
                         }
                     }
                 }
@@ -610,7 +603,7 @@ class TestEdgeCases:
         with pytest.raises(libcst.ParserSyntaxError):
             builder.build(sources, documents)
 
-    def test_nested_classes(self, temp_dir: Path) -> None:
+    def test_nested_classes(self, tmp_path: Path) -> None:
         py_content = '''"""Module."""
 
 class Outer:
@@ -623,15 +616,15 @@ class Outer:
             """Inner method."""
             pass
 '''
-        (temp_dir / "nested.py").write_text(py_content)
+        (tmp_path / "nested.py").write_text(py_content)
 
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]},
+                            "docc.python.discover": {"paths": [str(tmp_path)]},
                         }
                     }
                 }
@@ -691,7 +684,7 @@ class TestPythonTransformContract:
     should survive a CST -> AST migration unchanged.
     """
 
-    def test_module_with_class_and_function(self, temp_dir: Path) -> None:
+    def test_module_with_class_and_function(self, tmp_path: Path) -> None:
         """Verify structural output for a module with class and function."""
         py_content = '''"""Module docstring."""
 
@@ -706,7 +699,7 @@ def standalone_func(arg: str) -> None:
     """Standalone function."""
     pass
 '''
-        document, source, context = _run_pipeline(temp_dir, py_content)
+        document, source, context = _run_pipeline(tmp_path, py_content)
 
         collector = NodeCollector()
         document.root.visit(collector)
@@ -796,7 +789,7 @@ def standalone_func(arg: str) -> None:
             "Standalone function" in t for t in docstring_texts
         ), f"Expected standalone_func docstring, got: {docstring_texts}"
 
-    def test_class_with_attributes(self, temp_dir: Path) -> None:
+    def test_class_with_attributes(self, tmp_path: Path) -> None:
         """Verify that annotated class attributes produce Attribute nodes."""
         py_content = '''"""Module."""
 
@@ -809,7 +802,7 @@ class Config:
     name: str
 '''
         document, source, context = _run_pipeline(
-            temp_dir, py_content, filename="config.py"
+            tmp_path, py_content, filename="config.py"
         )
 
         collector = NodeCollector()

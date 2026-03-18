@@ -15,10 +15,9 @@
 
 """Tests for HTMLContext, HTMLDiscover, HTMLTransform, and HTMLRoot output."""
 
-import tempfile
 from io import StringIO
 from pathlib import Path, PurePath
-from typing import Iterator, Optional
+from typing import Optional
 
 import pytest
 
@@ -55,14 +54,8 @@ class MockSource(Source):
 
 
 @pytest.fixture
-def temp_dir() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as td:
-        yield Path(td)
-
-
-@pytest.fixture
-def basic_settings(temp_dir: Path) -> Settings:
-    return Settings(temp_dir, {"tool": {"docc": {}}})
+def basic_settings(tmp_path: Path) -> Settings:
+    return Settings(tmp_path, {"tool": {"docc": {}}})
 
 
 @pytest.fixture
@@ -88,9 +81,9 @@ def test_context_default_values(
     assert html.breadcrumbs is True
 
 
-def test_context_with_extra_css(temp_dir: Path) -> None:
+def test_context_with_extra_css(tmp_path: Path) -> None:
     settings = Settings(
-        temp_dir,
+        tmp_path,
         {
             "tool": {
                 "docc": {
@@ -109,9 +102,9 @@ def test_context_with_extra_css(temp_dir: Path) -> None:
     assert html.extra_css == ["custom.css", "theme.css"]
 
 
-def test_context_invalid_extra_css_raises(temp_dir: Path) -> None:
+def test_context_invalid_extra_css_raises(tmp_path: Path) -> None:
     settings = Settings(
-        temp_dir,
+        tmp_path,
         {
             "tool": {
                 "docc": {
@@ -125,9 +118,9 @@ def test_context_invalid_extra_css_raises(temp_dir: Path) -> None:
         HTMLContext(plugin_settings)
 
 
-def test_context_breadcrumbs_false(temp_dir: Path) -> None:
+def test_context_breadcrumbs_false(tmp_path: Path) -> None:
     settings = Settings(
-        temp_dir,
+        tmp_path,
         {
             "tool": {
                 "docc": {
@@ -142,9 +135,9 @@ def test_context_breadcrumbs_false(temp_dir: Path) -> None:
     assert html.breadcrumbs is False
 
 
-def test_context_invalid_breadcrumbs_raises(temp_dir: Path) -> None:
+def test_context_invalid_breadcrumbs_raises(tmp_path: Path) -> None:
     settings = Settings(
-        temp_dir,
+        tmp_path,
         {
             "tool": {
                 "docc": {
@@ -158,9 +151,9 @@ def test_context_invalid_breadcrumbs_raises(temp_dir: Path) -> None:
         HTMLContext(plugin_settings)
 
 
-def test_context_with_all_options(temp_dir: Path) -> None:
+def test_context_with_all_options(tmp_path: Path) -> None:
     settings = Settings(
-        temp_dir,
+        tmp_path,
         {
             "tool": {
                 "docc": {
@@ -222,8 +215,8 @@ def test_transform_skips_output_nodes(
     assert context[Document].root is root
 
 
-def test_transform_blank_node(temp_dir: Path) -> None:
-    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+def test_transform_blank_node(tmp_path: Path) -> None:
+    settings = Settings(tmp_path, {"tool": {"docc": {}}})
     plugin_settings = settings.for_plugin("docc.html.transform")
 
     blank = BlankNode()
@@ -237,8 +230,8 @@ def test_transform_blank_node(temp_dir: Path) -> None:
     assert document.root.extension == ".html"
 
 
-def test_transform_list_node(temp_dir: Path) -> None:
-    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+def test_transform_list_node(tmp_path: Path) -> None:
+    settings = Settings(tmp_path, {"tool": {"docc": {}}})
     plugin_settings = settings.for_plugin("docc.html.transform")
 
     node = ListNode([BlankNode(), BlankNode()])
@@ -314,9 +307,9 @@ def test_output_breadcrumbs_for_nested_path() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_root_with_html_context(temp_dir: Path) -> None:
+def test_root_with_html_context(tmp_path: Path) -> None:
     settings = Settings(
-        temp_dir,
+        tmp_path,
         {
             "tool": {
                 "docc": {

@@ -13,11 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import tempfile
 from pathlib import Path, PurePath
 from typing import Dict, FrozenSet, Iterator, Optional, Set
-
-import pytest
 
 from docc.build import Builder
 from docc.build import load as load_builders
@@ -26,12 +23,6 @@ from docc.discover import load as load_discovers
 from docc.document import BlankNode, Document
 from docc.settings import PluginSettings, Settings
 from docc.source import Source
-
-
-@pytest.fixture
-def temp_dir() -> Iterator[Path]:
-    with tempfile.TemporaryDirectory() as td:
-        yield Path(td)
 
 
 class MockSource(Source):
@@ -72,8 +63,8 @@ class ConcreteBuilder(Builder):
                 processed[source] = Document(BlankNode())
 
 
-def test_discover_yields_source(temp_dir: Path) -> None:
-    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+def test_discover_yields_source(tmp_path: Path) -> None:
+    settings = Settings(tmp_path, {"tool": {"docc": {}}})
     plugin_settings = settings.for_plugin("test")
 
     discover = ConcreteDiscover(plugin_settings)
@@ -83,8 +74,8 @@ def test_discover_yields_source(temp_dir: Path) -> None:
     assert isinstance(sources[0], MockSource)
 
 
-def test_builder_processes_source(temp_dir: Path) -> None:
-    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+def test_builder_processes_source(tmp_path: Path) -> None:
+    settings = Settings(tmp_path, {"tool": {"docc": {}}})
     plugin_settings = settings.for_plugin("test")
 
     builder = ConcreteBuilder(plugin_settings)
@@ -97,12 +88,12 @@ def test_builder_processes_source(temp_dir: Path) -> None:
     assert len(processed) == 1
 
 
-def test_builder_context_manager(temp_dir: Path) -> None:
+def test_builder_context_manager(tmp_path: Path) -> None:
     """
     Builder extends AbstractContextManager, so it must support
     the with statement (enter/exit protocol).
     """
-    settings = Settings(temp_dir, {"tool": {"docc": {}}})
+    settings = Settings(tmp_path, {"tool": {"docc": {}}})
     plugin_settings = settings.for_plugin("test")
 
     builder = ConcreteBuilder(plugin_settings)
@@ -111,24 +102,24 @@ def test_builder_context_manager(temp_dir: Path) -> None:
 
 
 class TestLoadDiscovers:
-    def test_load_empty_discovery_list(self, temp_dir: Path) -> None:
+    def test_load_empty_discovery_list(self, tmp_path: Path) -> None:
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {"tool": {"docc": {"discovery": []}}},
         )
 
         result = list(load_discovers(settings))
         assert result == []
 
-    def test_load_single_discover(self, temp_dir: Path) -> None:
+    def test_load_single_discover(self, tmp_path: Path) -> None:
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
                         "discovery": ["docc.python.discover"],
                         "plugins": {
-                            "docc.python.discover": {"paths": [str(temp_dir)]}
+                            "docc.python.discover": {"paths": [str(tmp_path)]}
                         },
                     }
                 }
@@ -142,18 +133,18 @@ class TestLoadDiscovers:
 
 
 class TestLoadBuilders:
-    def test_load_empty_builder_list(self, temp_dir: Path) -> None:
+    def test_load_empty_builder_list(self, tmp_path: Path) -> None:
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {"tool": {"docc": {"build": []}}},
         )
 
         result = list(load_builders(settings))
         assert result == []
 
-    def test_load_single_builder(self, temp_dir: Path) -> None:
+    def test_load_single_builder(self, tmp_path: Path) -> None:
         settings = Settings(
-            temp_dir,
+            tmp_path,
             {
                 "tool": {
                     "docc": {
