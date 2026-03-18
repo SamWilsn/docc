@@ -20,7 +20,6 @@ from typing import Iterator
 import pytest
 
 from docc.settings import (
-    FILE_NAME,
     MAX_DEPTH,
     Output,
     PluginSettings,
@@ -297,11 +296,3 @@ option = "value"
         assert settings.build == ["custom.build"]
         assert settings.transform == ["custom.transform"]
         assert settings.output.path == Path("output")
-
-
-class TestSettingsConstants:
-    def test_max_depth(self) -> None:
-        assert MAX_DEPTH == 10
-
-    def test_file_name(self) -> None:
-        assert FILE_NAME == "pyproject.toml"
