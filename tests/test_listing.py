@@ -268,9 +268,8 @@ class TestListingDiscover:
         discover = ListingDiscover(plugin_settings)
         sources = list(discover.discover(known))
 
-        # The source has output_path="output", so a listing
+        # The source has output_path="output", so a single listing
         # should be created for its parent directory (".")
-        # output_path="output" has one parent ".", so 1 listing is created
         assert (
             len(sources) == 1
         ), "Should create listing when Listable falls back to output_path"
