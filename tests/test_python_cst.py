@@ -485,8 +485,7 @@ class TestNameVisitor:
 def test_python_node_children_type_error() -> None:
     """
     PythonNode.children raises TypeError when a field annotated
-    as Node contains a non-Node value. This documents the
-    defensive contract in nodes.py:44.
+    as Node contains a non-Node value.
     """
     module = nodes.Module()
     # Forcefully set a Node-typed field to a non-Node value
