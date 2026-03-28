@@ -175,13 +175,7 @@ class TestListingDiscover:
         # "src/module.py" has parents "src" and ".", so 2 listings are created
         assert len(sources) == 2, "Should create listings for 'src' and root"
         assert all(isinstance(s, ListingSource) for s in sources)
-        # Verify a listing was created for the 'src' directory
-        src_listing = next(
-            (s for s in sources if s.relative_path == PurePath("src")), None
-        )
-        assert (
-            src_listing is not None
-        ), "Should create listing for 'src' directory"
+        assert any(s.relative_path == PurePath("src") for s in sources)
 
     def test_discover_creates_nested_listings(
         self, plugin_settings: PluginSettings
@@ -227,17 +221,10 @@ class TestListingDiscover:
 
         # "shown/file.py" has parents "shown" and ".", so 2 listings
         assert len(sources) == 2, "Should create listings for 'shown' and root"
-        # Verify a listing was created for the 'shown' directory
         shown_listing = next(
-            (s for s in sources if s.relative_path == PurePath("shown")), None
+            s for s in sources if s.relative_path == PurePath("shown")
         )
-        assert (
-            shown_listing is not None
-        ), "Should create listing for 'shown' directory"
-        # Verify the shown source is included in the listing
-        assert (
-            shown_source in shown_listing.sources
-        ), "Shown source should be in listing"
+        assert shown_source in shown_listing.sources
 
     def test_discover_skips_source_without_path(
         self, plugin_settings: PluginSettings
@@ -263,9 +250,8 @@ class TestListingDiscover:
         sources = list(discover.discover(known))
 
         dir_listing = next(
-            (s for s in sources if s.relative_path == PurePath("dir")), None
+            s for s in sources if s.relative_path == PurePath("dir")
         )
-        assert dir_listing is not None
         assert first_source in dir_listing.sources
         assert second_source in dir_listing.sources
 
