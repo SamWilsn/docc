@@ -19,7 +19,6 @@ path = "docs"
 [tool.pytest.ini_options]
 # term-missing shows uncovered line numbers in terminal output
 addopts = "--cov=docc --cov-report=term-missing"
-testpaths = ["tests"]
 
 [tool.coverage.run]
 source = ["src/docc"]
