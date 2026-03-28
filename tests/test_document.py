@@ -14,7 +14,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from io import StringIO
-from typing import List
+from typing import ClassVar, List, Literal, Tuple
 
 import pytest
 from typing_extensions import override
@@ -30,6 +30,8 @@ from docc.document import (
     _ExtensionVisitor,
     _StrVisitor,
 )
+
+Event = Tuple[Literal["enter", "exit"], int]
 
 
 @pytest.mark.parametrize(
@@ -119,35 +121,24 @@ class TestListNode:
 
 
 class RecordingVisitor(Visitor):
-    events: List[str]
+    returns: ClassVar[Visit] = Visit.TraverseChildren
+    events: List[Event]
 
     def __init__(self) -> None:
         self.events = []
 
     @override
     def enter(self, node: Node) -> Visit:
-        self.events.append(f"enter:{repr(node)}")
-        return Visit.TraverseChildren
+        self.events.append(("enter", id(node)))
+        return self.returns
 
     @override
     def exit(self, node: Node) -> None:
-        self.events.append(f"exit:{repr(node)}")
+        self.events.append(("exit", id(node)))
 
 
-class SkippingVisitor(Visitor):
-    events: List[str]
-
-    def __init__(self) -> None:
-        self.events = []
-
-    @override
-    def enter(self, node: Node) -> Visit:
-        self.events.append(f"enter:{repr(node)}")
-        return Visit.SkipChildren
-
-    @override
-    def exit(self, node: Node) -> None:
-        self.events.append(f"exit:{repr(node)}")
+class SkippingVisitor(RecordingVisitor):
+    returns: ClassVar[Visit] = Visit.SkipChildren
 
 
 class TestNodeVisit:
@@ -156,7 +147,10 @@ class TestNodeVisit:
         visitor = RecordingVisitor()
         node.visit(visitor)
 
-        assert visitor.events == ["enter:<blank>", "exit:<blank>"]
+        assert visitor.events == [
+            ("enter", id(node)),
+            ("exit", id(node)),
+        ]
 
     def test_visit_with_children(self) -> None:
         first_child = BlankNode()
@@ -167,12 +161,12 @@ class TestNodeVisit:
         parent.visit(visitor)
 
         assert visitor.events == [
-            "enter:<list>",
-            "enter:<blank>",
-            "exit:<blank>",
-            "enter:<blank>",
-            "exit:<blank>",
-            "exit:<list>",
+            ("enter", id(parent)),
+            ("enter", id(first_child)),
+            ("exit", id(first_child)),
+            ("enter", id(second_child)),
+            ("exit", id(second_child)),
+            ("exit", id(parent)),
         ]
 
     def test_visit_skip_children(self) -> None:
@@ -182,7 +176,10 @@ class TestNodeVisit:
         visitor = SkippingVisitor()
         parent.visit(visitor)
 
-        assert visitor.events == ["enter:<list>", "exit:<list>"]
+        assert visitor.events == [
+            ("enter", id(parent)),
+            ("exit", id(parent)),
+        ]
 
     def test_visit_nested_structure(self) -> None:
         leaf = BlankNode()
@@ -193,20 +190,18 @@ class TestNodeVisit:
         outer.visit(visitor)
 
         assert visitor.events == [
-            "enter:<list>",
-            "enter:<list>",
-            "enter:<blank>",
-            "exit:<blank>",
-            "exit:<list>",
-            "exit:<list>",
+            ("enter", id(outer)),
+            ("enter", id(inner)),
+            ("enter", id(leaf)),
+            ("exit", id(leaf)),
+            ("exit", id(inner)),
+            ("exit", id(outer)),
         ]
 
     def test_visit_depth_first(self) -> None:
-        first_leaf, second_leaf, third_leaf = (
-            BlankNode(),
-            BlankNode(),
-            BlankNode(),
-        )
+        first_leaf = BlankNode()
+        second_leaf = BlankNode()
+        third_leaf = BlankNode()
         first_branch = ListNode([first_leaf, second_leaf])
         second_branch = ListNode([third_leaf])
         root = ListNode([first_branch, second_branch])
@@ -214,10 +209,10 @@ class TestNodeVisit:
         visitor = RecordingVisitor()
         root.visit(visitor)
 
-        enter_events = [e for e in visitor.events if e.startswith("enter")]
-        assert enter_events[0] == "enter:<list>"
-        assert enter_events[1] == "enter:<list>"
-        assert enter_events[2] == "enter:<blank>"
+        enter_events = [e for e in visitor.events if e[0] == "enter"]
+        assert enter_events[0] == ("enter", id(root))
+        assert enter_events[1] == ("enter", id(first_branch))
+        assert enter_events[2] == ("enter", id(first_leaf))
 
 
 class TestNodeDump:
@@ -394,28 +389,23 @@ class TestExtensionVisitor:
         assert any("extension" in r.message for r in caplog.records)
 
 
-class ConditionalSkipVisitor(Visitor):
-    events: List[str]
+class ConditionalSkipVisitor(RecordingVisitor):
     skip_after_first: bool
 
     def __init__(self, skip_after_first: bool = False) -> None:
-        self.events = []
+        super().__init__()
         self.skip_after_first = skip_after_first
         self._first_seen = False
 
     @override
     def enter(self, node: Node) -> Visit:
-        self.events.append(f"enter:{repr(node)}")
+        self.events.append(("enter", id(node)))
         if self.skip_after_first and not self._first_seen:
             self._first_seen = True
             return Visit.TraverseChildren
         elif self.skip_after_first:
             return Visit.SkipChildren
         return Visit.TraverseChildren
-
-    @override
-    def exit(self, node: Node) -> None:
-        self.events.append(f"exit:{repr(node)}")
 
 
 class TestVisitorEdgeCases:
@@ -424,7 +414,10 @@ class TestVisitorEdgeCases:
         visitor = RecordingVisitor()
         node.visit(visitor)
 
-        assert visitor.events == ["enter:<list>", "exit:<list>"]
+        assert visitor.events == [
+            ("enter", id(node)),
+            ("exit", id(node)),
+        ]
 
     def test_visit_deeply_nested(self) -> None:
         node: Node = BlankNode()
@@ -434,7 +427,7 @@ class TestVisitorEdgeCases:
         visitor = RecordingVisitor()
         node.visit(visitor)
 
-        enter_count = sum(1 for e in visitor.events if e.startswith("enter"))
+        enter_count = sum(1 for e in visitor.events if e[0] == "enter")
         assert enter_count == 11
 
     def test_visit_wide_tree(self) -> None:
@@ -444,8 +437,12 @@ class TestVisitorEdgeCases:
         visitor = RecordingVisitor()
         node.visit(visitor)
 
-        blank_enters = sum(1 for e in visitor.events if e == "enter:<blank>")
-        assert blank_enters == 100
+        enter_count = sum(
+            1
+            for e in visitor.events
+            if e[0] == "enter" and e != ("enter", id(node))
+        )
+        assert enter_count == 100
 
     def test_conditional_skip(self) -> None:
         grandchild = BlankNode()
@@ -455,7 +452,7 @@ class TestVisitorEdgeCases:
         visitor = ConditionalSkipVisitor(skip_after_first=True)
         parent.visit(visitor)
 
-        assert "enter:<blank>" not in visitor.events
+        assert ("enter", id(grandchild)) not in visitor.events
 
 
 class ModifyingVisitor(Visitor):
