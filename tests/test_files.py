@@ -54,11 +54,11 @@ class TestFileSource:
         assert source.output_path == PurePath("docs/readme")
 
     def test_output_path_compound_extension(self) -> None:
-        relative = PurePath("docs/archive.tar.gz")
-        absolute = PurePath("/path/docs/archive.tar.gz")
+        relative = PurePath("static/chota.min.css")
+        absolute = PurePath("/path/static/chota.min.css")
         source = FileSource(relative, absolute)
 
-        assert source.output_path == PurePath("docs/archive.tar")
+        assert source.output_path == PurePath("static/chota.min")
 
     def test_output_path_no_suffix(self) -> None:
         relative = PurePath("docs/readme")
@@ -99,11 +99,11 @@ class TestFileNode:
         assert node.extension == ".txt"
 
     def test_extension_multiple_suffixes(self, tmp_path: Path) -> None:
-        file_path = tmp_path / "archive.tar.gz"
+        file_path = tmp_path / "chota.min.css"
         file_path.write_text("content")
 
         node = FileNode(file_path)
-        assert node.extension == ".gz"
+        assert node.extension == ".css"
 
     def test_output(self, tmp_path: Path) -> None:
         file_path = tmp_path / "test.txt"
