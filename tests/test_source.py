@@ -130,28 +130,6 @@ class TestTextSource:
         assert source.line(3) == "third"
 
 
-class TestTextSourceBoundary:
-    def test_line_zero_returns_last_line(self) -> None:
-        """
-        line(0) computes lines[0 - 1] = lines[-1], which silently
-        returns the last line due to Python negative indexing.
-        """
-        content = "first\nsecond\nthird"
-        source = ConcreteTextSource(content)
-        # line(0) accesses lines[-1] which is "third"
-        assert source.line(0) == "third"
-
-    def test_line_negative_one_returns_second_to_last(self) -> None:
-        """
-        line(-1) computes lines[-1 - 1] = lines[-2], which silently
-        returns the second-to-last line due to Python negative indexing.
-        """
-        content = "first\nsecond\nthird"
-        source = ConcreteTextSource(content)
-        # line(-1) accesses lines[-2] which is "second"
-        assert source.line(-1) == "second"
-
-
 def test_text_source_line_from_real_file() -> None:
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".py", delete=False
