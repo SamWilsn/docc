@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2024 Ethereum Foundation
+# Copyright (C) 2022-2024,2026 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -180,6 +180,7 @@ class Settings:
             context = self._settings["context"]
         except KeyError:
             context = [
+                "docc.listing.context",
                 "docc.references.context",
                 "docc.search.context",
                 "docc.html.context",
@@ -247,6 +248,7 @@ class Settings:
             transform = self._settings["transform"]
         except KeyError:
             transform = [
+                "docc.listing.transform",
                 "docc.python.transform",
                 "docc.mistletoe.transform",
                 "docc.mistletoe.reference",

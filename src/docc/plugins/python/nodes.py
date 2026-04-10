@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Ethereum Foundation
+# Copyright (C) 2022-2023,2026 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -71,6 +71,7 @@ class Module(PythonNode, Searchable):
     A Python module.
     """
 
+    listing: Node = dataclasses.field(default_factory=BlankNode)
     name: Node = dataclasses.field(default_factory=BlankNode)
     docstring: Node = dataclasses.field(default_factory=BlankNode)
     members: Node = dataclasses.field(default_factory=ListNode)

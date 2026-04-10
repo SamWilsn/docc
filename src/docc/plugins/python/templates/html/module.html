@@ -1,5 +1,5 @@
 {#
- # Copyright (C) 2022-2023 Ethereum Foundation
+ # Copyright (C) 2022-2023,2026 Ethereum Foundation
  #
  # This program is free software: you can redistribute it and/or modify
  # it under the terms of the GNU General Public License as published by
@@ -35,9 +35,17 @@
     </div>
 
     <nav class="toc col-12 col-3-md col-2-lg">
+        {% if node.listing %}
+        <h3>Browse</h3>
+        {{ node.listing|html }}
+        {% endif %}
+
+        {% with attributes = node|find("docc.plugins.python.nodes:Attribute") %}
+        {% with classes = node|find("docc.plugins.python.nodes:Class") %}
+        {% with functions = node|find("docc.plugins.python.nodes:Function") %}
+        {% if attributes or classes or functions %}
         <h3>Members</h3>
         <ul>
-            {% with attributes = node|find("docc.plugins.python.nodes:Attribute") %}
             {% if attributes %}
             <li>
                 <h4>
@@ -57,9 +65,7 @@
                 </ul>
             </li>
             {% endif %}
-            {% endwith %}
 
-            {% with classes = node|find("docc.plugins.python.nodes:Class") %}
             {% if classes %}
             <li>
                 <h4>
@@ -77,9 +83,7 @@
                 </ul>
             </li>
             {% endif %}
-            {% endwith %}
 
-            {% with functions = node|find("docc.plugins.python.nodes:Function") %}
             {% if functions %}
             <li>
                 <h4>
@@ -97,7 +101,10 @@
                 </ul>
             </li>
             {% endif %}
-            {% endwith %}
         </ul>
+        {% endif %}
+        {% endwith %}
+        {% endwith %}
+        {% endwith %}
     </nav>
 </section>

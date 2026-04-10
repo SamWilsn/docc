@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Ethereum Foundation
+# Copyright (C) 2022-2023,2026 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -48,6 +48,7 @@ from docc.build import Builder
 from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import BlankNode, Document, ListNode, Node, Visit, Visitor
+from docc.plugins.listing import ListingNode
 from docc.plugins.references import Definition, Reference
 from docc.plugins.verbatim import Fragment, Pos, Verbatim
 from docc.settings import PluginSettings
@@ -497,6 +498,7 @@ class _TransformVisitor(Visitor):
     def enter_module(self, node: CstNode, cst_node: cst.Module) -> Visit:
         assert 0 == len(self.new_stack)
         module = nodes.Module()
+        module.listing = ListingNode(leaf=True)
 
         names = sorted(node.names)
 
