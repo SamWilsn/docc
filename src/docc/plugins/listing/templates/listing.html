@@ -1,5 +1,5 @@
 {#
- # Copyright (C) 2023 Ethereum Foundation
+ # Copyright (C) 2023,2026 Ethereum Foundation
  #
  # This program is free software: you can redistribute it and/or modify
  # it under the terms of the GNU General Public License as published by
@@ -16,8 +16,14 @@
 -#}
 <nav>
         <ul>
-        {% for (path, href) in entries %}
-                <li><a href="{{ href }}">{{ path }}</a></li>
+        {% for (path, href, active) in entries %}
+                <li>
+                        {% if active %}
+                        <span>{{ path }}</span>
+                        {% else %}
+                        <a href="{{ href }}">{{ path }}</a>
+                        {% endif %}
+                </li>
         {% endfor %}
         </ul>
 </nav>
