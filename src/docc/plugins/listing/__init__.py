@@ -22,7 +22,21 @@ from collections import defaultdict
 from collections.abc import Iterable
 from os.path import commonpath
 from pathlib import PurePath
-from typing import Dict, Final, FrozenSet, Iterator, Set, Tuple, Type
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Final,
+    FrozenSet,
+    Iterator,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsDunderGT, SupportsDunderLT
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -40,6 +54,17 @@ class Listable(ABC):
     """
     Mixin to change visibility of a Source in a directory listing.
     """
+
+    @staticmethod
+    def _sorting_key(
+        thing: object,
+    ) -> Union["SupportsDunderGT[Any]", "SupportsDunderLT[Any]"]:
+        if isinstance(thing, Listable):
+            return thing.listing_order_key()
+        elif isinstance(thing, Source):
+            path = thing.relative_path or thing.output_path
+            return (True, path, None)
+        return (True, None, thing)
 
     @staticmethod
     def _show_source(source: Source) -> bool:
@@ -65,6 +90,17 @@ class Listable(ABC):
         `True` if this `Source` cannot contain child sources (eg. a file).
         """
         return True
+
+    def listing_order_key(
+        self,
+    ) -> Union["SupportsDunderGT[Any]", "SupportsDunderLT[Any]"]:
+        """
+        Key to use when sorting instances while rendering.
+        """
+        if isinstance(self, Source):
+            path = self.relative_path or self.output_path
+            return (self.is_leaf, path, None)
+        return (self.is_leaf, None, self)
 
 
 class ListingDiscover(Discover):
@@ -295,13 +331,7 @@ def render_html(
     else:
         sources = context[Listing].descendants(context[Source])
 
-    sources = sorted(
-        sources,
-        key=lambda v: (
-            not isinstance(v, Listable) or v.is_leaf,
-            v.relative_path or v.output_path,
-        ),
-    )
+    sources = sorted(sources, key=Listable._sorting_key)
 
     output_path = context[Source].output_path
     entries = []

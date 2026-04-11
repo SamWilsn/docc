@@ -12,6 +12,7 @@ delitem
 docc
 commonpath
 dasherize
+dunder
 endtag
 entityref
 eq
@@ -69,5 +70,6 @@ tostring
 traverser
 traversable
 typeddict
+typeshed
 unresolve
 urlunsplit
