@@ -111,6 +111,11 @@ class ListingDiscover(Discover):
     def __init__(self, config: PluginSettings) -> None:
         pass
 
+    def _listing_source(
+        self, source: Source, parent: PurePath
+    ) -> "ListingSource":
+        return ListingSource(parent, parent / "index", set())
+
     def discover(self, known: FrozenSet[T]) -> Iterator["ListingSource"]:
         """
         Find sources.
@@ -129,7 +134,7 @@ class ListingDiscover(Discover):
                 try:
                     listing = listings[parent]
                 except KeyError:
-                    listing = ListingSource(parent, parent / "index", set())
+                    listing = self._listing_source(source, parent)
                     listings[parent] = listing
                     yield listing
 
