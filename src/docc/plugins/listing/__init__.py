@@ -76,6 +76,12 @@ class Listable(ABC):
 
         return True
 
+    @staticmethod
+    def _is_leaf(source: Source) -> bool:
+        if isinstance(source, Listable):
+            return source.is_leaf
+        return True
+
     @property
     @abstractmethod
     def show_in_listing(self) -> bool:
@@ -111,15 +117,20 @@ class ListingDiscover(Discover):
     def __init__(self, config: PluginSettings) -> None:
         pass
 
+    def _index_path(self, parent: PurePath) -> PurePath:
+        return parent / "index"
+
     def _listing_source(
         self, source: Source, parent: PurePath
     ) -> "ListingSource":
-        return ListingSource(parent, parent / "index", set())
+        return ListingSource(parent, self._index_path(parent))
 
     def discover(self, known: FrozenSet[T]) -> Iterator["ListingSource"]:
         """
         Find sources.
         """
+        output_paths = {s.output_path: s for s in known}
+
         listings = {}
 
         for source in known:
@@ -134,11 +145,14 @@ class ListingDiscover(Discover):
                 try:
                     listing = listings[parent]
                 except KeyError:
-                    listing = self._listing_source(source, parent)
-                    listings[parent] = listing
-                    yield listing
+                    index_path = self._index_path(parent)
+                    try:
+                        listing = output_paths[index_path]
+                    except KeyError:
+                        listing = self._listing_source(source, parent)
+                        listings[parent] = listing
+                        yield listing
 
-                listing.sources.add(source)
                 source = listing
 
 
@@ -215,7 +229,6 @@ class ListingSource(Source, Listable):
 
     _relative_path: Final[PurePath]
     _output_path: Final[PurePath]
-    sources: Final[Set[Source]]
 
     show_in_listing: bool = True
     is_leaf: bool = False
@@ -224,10 +237,8 @@ class ListingSource(Source, Listable):
         self,
         relative_path: PurePath,
         output_path: PurePath,
-        sources: Set[Source],
     ) -> None:
         self._relative_path = relative_path
-        self.sources = sources
         self._output_path = output_path
 
     @property
@@ -365,7 +376,7 @@ def render_html(
         if node.leaf:
             path = path.name
 
-        if isinstance(source, Listable) and not source.is_leaf:
+        if not Listable._is_leaf(source):
             path = str(path) + "/"
 
         entries.append((path, relative_path, active))

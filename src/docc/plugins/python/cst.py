@@ -161,6 +161,9 @@ class PythonSource(TextSource):
         """
         Where to put the output derived from this source.
         """
+        if self._relative_path.name == "__init__.py":
+            return self._relative_path.with_name("index")
+
         return self._relative_path
 
     def open(self) -> TextIO:
