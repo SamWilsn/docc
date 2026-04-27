@@ -30,6 +30,7 @@ from . import build, context, discover, transform
 from .context import Context
 from .document import Document, Node, OutputNode, Visit, Visitor
 from .performance import measure
+from .plugins.listing import ListingSource
 from .settings import Settings
 from .source import Source
 
@@ -157,6 +158,9 @@ def main(command_line: Sequence[str] | None = None) -> None:
         rmtree(output_root, ignore_errors=True)
 
         with measure("Wrote outputs (%.4f s)", level=logging.INFO):
+            non_listing_outputs: Set[Path] = set()
+            resolved: Dict[Source, Path] = {}
+
             for source, context_ in contexts.items():
                 document = context_[Document]
                 extension = document.extension()
@@ -172,8 +176,24 @@ def main(command_line: Sequence[str] | None = None) -> None:
                 output_path = Path(
                     output_path.with_suffix(output_path.suffix + extension)
                 )
+                resolved[source] = output_path
+                if not isinstance(source, ListingSource):
+                    non_listing_outputs.add(output_path)
+
+            for source, context_ in contexts.items():
+                output_path = resolved.get(source)
+                if output_path is None:
+                    continue
+                if (
+                    isinstance(source, ListingSource)
+                    and output_path in non_listing_outputs
+                ):
+                    # Another source already writes here (e.g. an
+                    # ``__init__.py`` rendered as the package's index page).
+                    continue
 
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
+                document = context_[Document]
                 with open(output_path, "w", encoding="utf-8") as destination:
                     document.root.visit(_OutputVisitor(context_, destination))

@@ -157,10 +157,20 @@ class PythonSource(TextSource):
         return self._relative_path
 
     @property
+    def is_package_init(self) -> bool:
+        """
+        Whether this source is an ``__init__.py`` rendered as the package
+        directory's index page.
+        """
+        return self.absolute_path.name == "__init__.py"
+
+    @property
     def output_path(self) -> PurePath:
         """
         Where to put the output derived from this source.
         """
+        if self.is_package_init:
+            return self._relative_path.parent / "index"
         return self._relative_path
 
     def open(self) -> TextIO:
