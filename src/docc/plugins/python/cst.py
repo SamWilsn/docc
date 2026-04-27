@@ -48,7 +48,7 @@ from docc.build import Builder
 from docc.context import Context
 from docc.discover import Discover, T
 from docc.document import BlankNode, Document, ListNode, Node, Visit, Visitor
-from docc.plugins.listing import ListingNode
+from docc.plugins.listing import Listable, ListingNode
 from docc.plugins.references import Definition, Reference
 from docc.plugins.verbatim import Fragment, Pos, Verbatim
 from docc.settings import PluginSettings
@@ -130,7 +130,7 @@ class PythonDiscover(Discover):
                     yield PythonSource(root_path, relative_path, absolute_path)
 
 
-class PythonSource(TextSource):
+class PythonSource(TextSource, Listable):
     """
     A Source representing a Python file.
     """
@@ -149,6 +149,9 @@ class PythonSource(TextSource):
         self._relative_path = relative_path
         self.absolute_path = absolute_path
 
+    def _is_init(self) -> bool:
+        return self._relative_path.name == "__init__.py"
+
     @property
     def relative_path(self) -> Optional[PurePath]:
         """
@@ -161,6 +164,9 @@ class PythonSource(TextSource):
         """
         Where to put the output derived from this source.
         """
+        if self._is_init():
+            return self._relative_path.with_name("index")
+
         return self._relative_path
 
     def open(self) -> TextIO:
@@ -168,6 +174,19 @@ class PythonSource(TextSource):
         Open the source for reading.
         """
         return open(self.absolute_path, "r")
+
+    @property
+    def index_dir(self) -> Optional[PurePath]:
+        """
+        For index sources, the directory the source indexes. For other sources,
+        `None`.
+
+        For example, for an output path of `./foo/index`, this should return
+        `./foo`.
+        """
+        if self._is_init():
+            return self.output_path.parent
+        return None
 
 
 class PythonBuilder(Builder):
