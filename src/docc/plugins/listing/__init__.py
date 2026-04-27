@@ -17,7 +17,6 @@
 Plugin that renders directory listings.
 """
 
-from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Iterable
 from os.path import commonpath
@@ -29,6 +28,7 @@ from typing import (
     Final,
     FrozenSet,
     Iterator,
+    Optional,
     Set,
     Tuple,
     Type,
@@ -50,7 +50,7 @@ from docc.source import Source
 from docc.transform import Transform
 
 
-class Listable(ABC):
+class Listable:
     """
     Mixin to change visibility of a Source in a directory listing.
     """
@@ -63,7 +63,7 @@ class Listable(ABC):
             return thing.listing_order_key()
         elif isinstance(thing, Source):
             path = thing.relative_path or thing.output_path
-            return (True, path, None)
+            return (Listable._index_dir(thing) is None, path, None)
         return (True, None, thing)
 
     @staticmethod
@@ -76,18 +76,27 @@ class Listable(ABC):
 
         return True
 
+    @staticmethod
+    def _index_dir(source: Source) -> Optional[PurePath]:
+        if isinstance(source, Listable):
+            return source.index_dir
+        return None
+
     @property
-    @abstractmethod
+    def index_dir(self) -> Optional[PurePath]:
+        """
+        For index sources, the directory the source indexes. For other sources,
+        `None`.
+
+        For example, for an output path of `./foo/index`, this should return
+        `./foo`.
+        """
+        return None
+
+    @property
     def show_in_listing(self) -> bool:
         """
         `True` if this `Source` should be shown in directory listings.
-        """
-        raise NotImplementedError()
-
-    @property
-    def is_leaf(self) -> bool:
-        """
-        `True` if this `Source` cannot contain child sources (eg. a file).
         """
         return True
 
@@ -99,8 +108,8 @@ class Listable(ABC):
         """
         if isinstance(self, Source):
             path = self.relative_path or self.output_path
-            return (self.is_leaf, path, None)
-        return (self.is_leaf, None, self)
+            return (self.index_dir is None, path, None)
+        return (True, None, self)
 
 
 class ListingDiscover(Discover):
@@ -111,15 +120,20 @@ class ListingDiscover(Discover):
     def __init__(self, config: PluginSettings) -> None:
         pass
 
+    def _index_path(self, parent: PurePath) -> PurePath:
+        return parent / "index"
+
     def _listing_source(
         self, source: Source, parent: PurePath
     ) -> "ListingSource":
-        return ListingSource(parent, parent / "index", set())
+        return ListingSource(parent, self._index_path(parent))
 
     def discover(self, known: FrozenSet[T]) -> Iterator["ListingSource"]:
         """
         Find sources.
         """
+        output_paths = {s.output_path: s for s in known}
+
         listings = {}
 
         for source in known:
@@ -134,11 +148,14 @@ class ListingDiscover(Discover):
                 try:
                     listing = listings[parent]
                 except KeyError:
-                    listing = self._listing_source(source, parent)
-                    listings[parent] = listing
-                    yield listing
+                    index_path = self._index_path(parent)
+                    try:
+                        listing = output_paths[index_path]
+                    except KeyError:
+                        listing = self._listing_source(source, parent)
+                        listings[parent] = listing
+                        yield listing
 
-                listing.sources.add(source)
                 source = listing
 
 
@@ -158,8 +175,13 @@ class Listing:
         """
         Register a source.
         """
-        path = source.relative_path or source.output_path
-        self.sources[path.parent].add(source)
+        index_dir = Listable._index_dir(source)
+        if index_dir is None:
+            path = source.relative_path or source.output_path
+            self.sources[path.parent].add(source)
+        else:
+            self.sources[index_dir].add(source)
+            self.sources[index_dir.parent].add(source)
 
     def descendants(self, source: Source) -> Iterable[Source]:
         """
@@ -215,19 +237,13 @@ class ListingSource(Source, Listable):
 
     _relative_path: Final[PurePath]
     _output_path: Final[PurePath]
-    sources: Final[Set[Source]]
-
-    show_in_listing: bool = True
-    is_leaf: bool = False
 
     def __init__(
         self,
         relative_path: PurePath,
         output_path: PurePath,
-        sources: Set[Source],
     ) -> None:
         self._relative_path = relative_path
-        self.sources = sources
         self._output_path = output_path
 
     @property
@@ -243,6 +259,17 @@ class ListingSource(Source, Listable):
         Path to the Source (if one exists) relative to the project root.
         """
         return self._relative_path
+
+    @property
+    def index_dir(self) -> PurePath:
+        """
+        For index sources, the directory the source indexes. For other sources,
+        `None`.
+
+        For example, for an output path of `./foo/index`, this should return
+        `./foo`.
+        """
+        return self.output_path.parent
 
 
 class ListingBuilder(Builder):
@@ -339,6 +366,8 @@ def render_html(
     sources = sorted(sources, key=Listable._sorting_key)
 
     output_path = context[Source].output_path
+    output_parent = output_path.parent
+
     entries = []
 
     for source in sources:
@@ -360,13 +389,20 @@ def render_html(
             )  # TODO: Don't hardcode extension.
 
         active = source is context[Source]
-        path = source.relative_path or source.output_path
+        entry_index = Listable._index_dir(source)
+        relative = source.relative_path or source.output_path
 
-        if node.leaf:
-            path = path.name
-
-        if isinstance(source, Listable) and not source.is_leaf:
-            path = str(path) + "/"
+        if entry_index is None or (
+            entry_index == output_parent and relative != entry_index
+        ):
+            # Regular source, or an index source (like `__init__.py`) appearing
+            # in its own listing. Show as `<name>`.
+            path = relative.name if node.leaf else str(relative)
+        else:
+            # Synthetic listing, or a file-based index (like `__init__.py`)
+            # appearing in its parent directory's listing. Show as `<dir>/`.
+            path = entry_index.name if node.leaf else str(entry_index)
+            path = path + "/"
 
         entries.append((path, relative_path, active))
 
