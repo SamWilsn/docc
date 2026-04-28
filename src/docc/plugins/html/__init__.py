@@ -17,7 +17,6 @@
 Plugin that renders to HTML.
 """
 
-
 import html.parser
 import sys
 import xml.etree.ElementTree as ET
@@ -144,26 +143,31 @@ class HTMLDiscover(Discover):
         Construct a new instance with the given configuration.
         """
 
+    def _resource_source_with_path(
+        self, mod: str, input_path: PurePath, output_path: PurePath
+    ) -> ResourceSource:
+        return ResourceSource.with_path(mod, input_path, output_path)
+
     def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
         """
         Find sources.
         """
-        yield ResourceSource.with_path(
+        yield self._resource_source_with_path(
             "docc.plugins.html",
             PurePath("static") / "chota" / "dist" / "chota.min.css",
             PurePath("static") / "chota",
         )
-        yield ResourceSource.with_path(
+        yield self._resource_source_with_path(
             "docc.plugins.html",
             PurePath("static") / "docc.css",
             PurePath("static") / "docc",
         )
-        yield ResourceSource.with_path(
+        yield self._resource_source_with_path(
             "docc.plugins.html",
             PurePath("static") / "fuse" / "dist" / "fuse.min.js",
             PurePath("static") / "fuse",
         )
-        yield ResourceSource.with_path(
+        yield self._resource_source_with_path(
             "docc.plugins.html",
             PurePath("static") / "search.js",
             PurePath("static") / "search",
