@@ -87,6 +87,14 @@ class PythonDiscover(Discover):
 
     settings: PluginSettings
 
+    def _python_source(
+        self,
+        root_path: PurePath,
+        relative_path: PurePath,
+        absolute_path: PurePath,
+    ) -> "PythonSource":
+        return PythonSource(root_path, relative_path, absolute_path)
+
     def __init__(self, config: PluginSettings) -> None:
         self.settings = config
 
@@ -127,7 +135,9 @@ class PythonDiscover(Discover):
 
                 parents = relative_path.parents
                 if not any(p in parents for p in self.excluded_paths):
-                    yield PythonSource(root_path, relative_path, absolute_path)
+                    yield self._python_source(
+                        root_path, relative_path, absolute_path
+                    )
 
 
 class PythonSource(TextSource, Listable):

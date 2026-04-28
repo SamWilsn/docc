@@ -1,4 +1,4 @@
-# Copyright (C) 2023 Ethereum Foundation
+# Copyright (C) 2023,2026 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -131,6 +131,11 @@ class FilesDiscover(Discover):
 
     sources: Sequence[FileSource]
 
+    def _file_source(
+        self, relative_path: PurePath, absolute_path: PurePath
+    ) -> FileSource:
+        return FileSource(relative_path, absolute_path)
+
     def __init__(self, config: PluginSettings) -> None:
         """
         Construct a new instance with the given configuration.
@@ -140,13 +145,12 @@ class FilesDiscover(Discover):
             self.sources = []
         else:
             sources = []
+            self.sources = sources
 
             for item in files:
                 absolute_path = config.resolve_path(PurePath(item))
                 relative_path = config.unresolve_path(absolute_path)
-                sources.append(FileSource(relative_path, absolute_path))
-
-            self.sources = sources
+                sources.append(self._file_source(relative_path, absolute_path))
 
     def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
         """
