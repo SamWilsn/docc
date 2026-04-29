@@ -215,10 +215,9 @@ def test_transform_skips_output_nodes(
     assert context[Document].root is root
 
 
-def test_transform_blank_node(tmp_path: Path) -> None:
-    settings = Settings(tmp_path, {"tool": {"docc": {}}})
-    plugin_settings = settings.for_plugin("docc.html.transform")
-
+def test_transform_blank_node(
+    tmp_path: Path, plugin_settings: PluginSettings
+) -> None:
     blank = BlankNode()
     document = Document(blank)
     context = Context({Document: document})
@@ -230,10 +229,9 @@ def test_transform_blank_node(tmp_path: Path) -> None:
     assert document.root.extension == ".html"
 
 
-def test_transform_list_node(tmp_path: Path) -> None:
-    settings = Settings(tmp_path, {"tool": {"docc": {}}})
-    plugin_settings = settings.for_plugin("docc.html.transform")
-
+def test_transform_list_node(
+    tmp_path: Path, plugin_settings: PluginSettings
+) -> None:
     node = ListNode([BlankNode(), BlankNode()])
     document = Document(node)
     context = Context({Document: document})
@@ -286,20 +284,6 @@ def test_output_with_text_node_child() -> None:
 
     assert "raw text" in output
     assert "<!DOCTYPE html>" in output
-
-
-def test_output_breadcrumbs_for_nested_path() -> None:
-    source = MockSource(PurePath("a/b/page.html"))
-    context = Context({Source: source})
-    root = HTMLRoot(context)
-    root.append(HTMLTag("p"))
-
-    buffer = StringIO()
-    root.output(context, buffer)
-    output = buffer.getvalue()
-
-    assert "breadcrumbs" in output
-    assert "page.html" in output
 
 
 # ---------------------------------------------------------------------------

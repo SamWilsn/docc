@@ -110,11 +110,6 @@ class TestListNode:
         node = ListNode()
         assert bool(node) is False
 
-    def test_iter(self) -> None:
-        children: List[Node] = [BlankNode(), BlankNode()]
-        node = ListNode(children)
-        assert list(node.children) == children
-
     def test_len(self) -> None:
         node = ListNode([BlankNode(), BlankNode(), BlankNode()])
         assert len(node) == 3

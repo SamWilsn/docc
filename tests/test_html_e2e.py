@@ -75,32 +75,6 @@ class TestHTMLTransformProducesHTMLRoot:
     via HTMLVisitor and the entry-point-based renderer lookup.
     """
 
-    def test_blank_node_becomes_html_root(
-        self, plugin_settings: PluginSettings
-    ) -> None:
-        """A document containing a BlankNode becomes an HTMLRoot."""
-        blank = BlankNode()
-        document = Document(blank)
-        context = Context({Document: document})
-
-        transform = HTMLTransform(plugin_settings)
-        transform.transform(context)
-
-        assert isinstance(document.root, HTMLRoot)
-
-    def test_list_with_blanks_becomes_html_root(
-        self, plugin_settings: PluginSettings
-    ) -> None:
-        """A document with a ListNode of BlankNodes becomes an HTMLRoot."""
-        tree = ListNode([BlankNode(), BlankNode(), BlankNode()])
-        document = Document(tree)
-        context = Context({Document: document})
-
-        transform = HTMLTransform(plugin_settings)
-        transform.transform(context)
-
-        assert isinstance(document.root, HTMLRoot)
-
     def test_definition_with_blank_becomes_html_root(
         self, plugin_settings: PluginSettings
     ) -> None:
@@ -158,32 +132,6 @@ class TestHTMLRootOutputProducesValidHTML:
     containing the expected structural elements from the Jinja2 template.
     """
 
-    def test_basic_output_contains_html_structure(self) -> None:
-        """
-        A manually constructed HTMLRoot with an HTMLTag child produces
-        a complete HTML document with DOCTYPE, head, and body.
-        """
-        source = _MockSource(PurePath("docs/page.py"))
-        context = Context({Source: source})
-        root = HTMLRoot(context)
-
-        div = HTMLTag("div", {"class": "content"})
-        div.append(TextNode("Hello from docc"))
-        root.append(div)
-
-        buffer = StringIO()
-        root.output(context, buffer)
-        output = buffer.getvalue()
-
-        assert "<!DOCTYPE html>" in output
-        assert "<html>" in output
-        assert "</html>" in output
-        assert "<head>" in output
-        assert "<body>" in output
-        assert "<main" in output
-        assert "Hello from docc" in output
-        assert "content" in output
-
     def test_output_includes_static_css_links(self) -> None:
         """The rendered HTML includes links to chota and docc CSS."""
         source = _MockSource(PurePath("docs/page.py"))
@@ -211,20 +159,6 @@ class TestHTMLRootOutputProducesValidHTML:
         output = buffer.getvalue()
 
         assert "custom.css" in output
-
-    def test_output_renders_text_node_children(self) -> None:
-        """Render TextNode children directly into the body."""
-        source = _MockSource(PurePath("page.py"))
-        context = Context({Source: source})
-        root = HTMLRoot(context)
-        root.append(TextNode("Raw text content"))
-
-        buffer = StringIO()
-        root.output(context, buffer)
-        output = buffer.getvalue()
-
-        assert "Raw text content" in output
-        assert "<!DOCTYPE html>" in output
 
     def test_output_breadcrumbs_for_nested_path(self) -> None:
         """Breadcrumbs are rendered for documents in nested directories."""
@@ -389,29 +323,6 @@ class TestReferenceRendersAsLink:
     definition's location.
     """
 
-    def test_single_definition_produces_anchor(self) -> None:
-        """
-        render_reference with a single definition produces an <a> tag
-        whose href includes the definition path and fragment.
-        """
-        source = _MockSource(PurePath("docs/caller.py"))
-        def_source = _MockSource(PurePath("docs/target.py"))
-
-        index = Index()
-        index.define(def_source, "target_func")
-
-        context = Context({Source: source, Index: index})
-        ref = Reference(identifier="target_func")
-
-        anchor = render_reference(context, ref)
-
-        assert isinstance(anchor, HTMLTag)
-        assert anchor.tag_name == "a"
-        href = anchor.attributes.get("href", "")
-        assert href is not None
-        assert "target_func:0" in href
-        assert "target.py.html" in href
-
     def test_same_file_reference_has_fragment_only(self) -> None:
         """
         When the reference and definition are in the same source file,
@@ -431,41 +342,6 @@ class TestReferenceRendersAsLink:
         href = anchor.attributes.get("href", "")
         assert href is not None
         assert "local_func:0" in href
-
-    def test_multiple_definitions_produce_tooltip(self) -> None:
-        """
-        When there are multiple definitions for one identifier, the
-        result is a tooltip div containing multiple anchor tags.
-        """
-        source = _MockSource(PurePath("docs/caller.py"))
-        def_source_a = _MockSource(PurePath("docs/module_a.py"))
-        def_source_b = _MockSource(PurePath("docs/module_b.py"))
-
-        index = Index()
-        index.define(def_source_a, "overloaded")
-        index.define(def_source_b, "overloaded")
-
-        context = Context({Source: source, Index: index})
-        ref = Reference(identifier="overloaded")
-
-        container = render_reference(context, ref)
-
-        assert isinstance(container, HTMLTag)
-        assert container.tag_name == "div"
-        assert container.attributes.get("class") == "tooltip"
-
-        tooltip_content = list(container.children)[0]
-        assert isinstance(tooltip_content, HTMLTag)
-        assert tooltip_content.attributes.get("class") == "tooltip-content"
-
-        anchors = list(tooltip_content.children)
-        assert len(anchors) == 2
-        for a in anchors:
-            assert isinstance(a, HTMLTag)
-            assert a.tag_name == "a"
-            href = a.attributes.get("href", "")
-            assert href is not None
-            assert "overloaded" in href
 
     def test_references_reference_appends_anchor(self) -> None:
         """

@@ -38,7 +38,7 @@ from docc.plugins.references import (
     IndexTransform,
     Reference,
 )
-from docc.settings import PluginSettings, Settings
+from docc.settings import Settings
 from docc.source import Source
 
 
@@ -338,100 +338,6 @@ def func():
         assert (
             "emphasis" in combined_text.lower()
         ), f"Expected 'emphasis' in search text, got: {combined_text}"
-
-
-class TestMistletoeTransforms:
-    def test_docstring_to_markdown(self) -> None:
-        docstring = nodes.Docstring("This is **bold** and *italic*.")
-        root = ListNode([docstring])
-        document = Document(root)
-        context = Context({Document: document})
-
-        transform = DocstringTransform(
-            PluginSettings(Settings(Path("."), {}), {})
-        )
-        transform.transform(context)
-
-        assert not isinstance(list(document.root.children)[0], nodes.Docstring)
-
-    def test_reference_transform_converts_ref_links(self) -> None:
-        import mistletoe as md
-
-        markdown = "[link text](ref:some.identifier)"
-        root = MarkdownNode(md.Document(markdown))
-        document = Document(root)
-        context = Context({Document: document})
-
-        transform = ReferenceTransform(
-            PluginSettings(Settings(Path("."), {}), {})
-        )
-        transform.transform(context)
-
-        class ReferenceChecker(Visitor):
-            found_reference = False
-
-            def enter(self, node: Node) -> Visit:
-                if isinstance(node, Reference):
-                    self.found_reference = True
-                    assert node.identifier == "some.identifier"
-                return Visit.TraverseChildren
-
-            def exit(self, node: Node) -> None:
-                pass
-
-        checker = ReferenceChecker()
-        document.root.visit(checker)
-        assert checker.found_reference
-
-    def test_reference_transform_ignores_http_links(self) -> None:
-        import mistletoe as md
-
-        markdown = "[external](https://example.com)"
-        root = MarkdownNode(md.Document(markdown))
-        document = Document(root)
-        context = Context({Document: document})
-
-        transform = ReferenceTransform(
-            PluginSettings(Settings(Path("."), {}), {})
-        )
-        transform.transform(context)
-
-        class ReferenceChecker(Visitor):
-            found_reference = False
-
-            def enter(self, node: Node) -> Visit:
-                if isinstance(node, Reference):
-                    self.found_reference = True
-                return Visit.TraverseChildren
-
-            def exit(self, node: Node) -> None:
-                pass
-
-        checker = ReferenceChecker()
-        document.root.visit(checker)
-        assert not checker.found_reference
-
-
-def test_index_transform_indexes_definitions() -> None:
-    first_definition = Definition(identifier="module.ClassA")
-    second_definition = Definition(identifier="module.func_b")
-    root = ListNode([first_definition, second_definition])
-    document = Document(root)
-
-    source = MockSource()
-    index = Index()
-    context = Context({Document: document, Source: source, Index: index})
-
-    transform = IndexTransform(PluginSettings(Settings(Path("."), {}), {}))
-    transform.transform(context)
-
-    assert first_definition.specifier == 0
-    assert second_definition.specifier == 0
-
-    class_locations = list(index.lookup("module.ClassA"))
-    func_locations = list(index.lookup("module.func_b"))
-    assert len(class_locations) == 1
-    assert len(func_locations) == 1
 
 
 def test_pipeline_python_to_html_references(tmp_path: Path) -> None:

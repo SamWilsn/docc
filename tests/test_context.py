@@ -26,20 +26,9 @@ class TestContext:
         ctx = Context()
         assert str not in ctx
 
-    def test_init_with_items(self) -> None:
-        ctx = Context({str: "hello", int: 42})
-        assert ctx[str] == "hello"
-        assert ctx[int] == 42
-
     def test_init_with_none(self) -> None:
         ctx = Context(None)
         assert str not in ctx
-        with pytest.raises(KeyError):
-            ctx[str]
-
-    def test_getitem_returns_value(self) -> None:
-        ctx = Context({str: "test"})
-        assert ctx[str] == "test"
 
     def test_getitem_missing_raises(self) -> None:
         ctx = Context({})
