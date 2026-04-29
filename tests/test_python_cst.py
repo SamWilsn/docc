@@ -94,22 +94,14 @@ class TestPythonDiscover:
         with pytest.raises(ValueError, match="python needs at least one path"):
             PythonDiscover(plugin_settings)
 
-    def test_discover_finds_python_files(self, tmp_path: Path) -> None:
+    def test_discover_finds_python_files(
+        self, tmp_path: Path, settings_with_paths: Settings
+    ) -> None:
         (tmp_path / "test.py").write_text("# test")
 
-        settings = Settings(
-            tmp_path,
-            {
-                "tool": {
-                    "docc": {
-                        "plugins": {
-                            "docc.python.discover": {"paths": [str(tmp_path)]}
-                        }
-                    }
-                }
-            },
+        plugin_settings = settings_with_paths.for_plugin(
+            "docc.python.discover"
         )
-        plugin_settings = settings.for_plugin("docc.python.discover")
         discover = PythonDiscover(plugin_settings)
 
         sources = list(discover.discover(frozenset()))

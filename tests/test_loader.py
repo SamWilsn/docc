@@ -30,11 +30,6 @@ class TestLoader:
         assert len(loader.entry_points) > 0, "Entry points should be populated"
         assert "docc.python.discover" in loader.entry_points
 
-    def test_entry_points_populated(self) -> None:
-        loader = Loader()
-        assert len(loader.entry_points) > 0
-        assert "docc.python.discover" in loader.entry_points
-
     def test_load_discover_plugin(self) -> None:
         loader = Loader()
         cls = loader.load(Discover, "docc.python.discover")

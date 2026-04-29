@@ -21,7 +21,7 @@ discover -> build -> context -> transform -> HTML render -> file output.
 """
 
 from io import StringIO
-from pathlib import Path, PurePath
+from pathlib import PurePath
 from typing import Optional
 
 from docc.context import Context
@@ -46,39 +46,24 @@ from docc.plugins.references import (
     IndexTransform,
     Reference,
 )
-from docc.settings import PluginSettings, Settings
-from docc.source import Source
-
-_EMPTY_PLUGIN_SETTINGS: PluginSettings = Settings(
-    Path("."), {"tool": {"docc": {}}}
-).for_plugin("docc.html")
+from docc.settings import PluginSettings
+from docc.source import Source, StringSource
 
 
-class _MockSource(Source):
+class _MockSource(StringSource):
     """A minimal Source implementation for testing."""
-
-    _relative_path: Optional[PurePath]
-    _output_path: PurePath
 
     def __init__(
         self,
         output_path: Optional[PurePath] = None,
         relative_path: Optional[PurePath] = None,
     ) -> None:
-        self._output_path = (
-            output_path if output_path is not None else PurePath("test.py")
-        )
-        self._relative_path = (
-            relative_path if relative_path is not None else self._output_path
-        )
+        if output_path is None:
+            output_path = PurePath("test.py")
+        if relative_path is None:
+            relative_path = output_path
 
-    @property
-    def relative_path(self) -> Optional[PurePath]:
-        return self._relative_path
-
-    @property
-    def output_path(self) -> PurePath:
-        return self._output_path
+        super().__init__("", output_path, relative_path)
 
 
 class TestHTMLTransformProducesHTMLRoot:
@@ -90,29 +75,35 @@ class TestHTMLTransformProducesHTMLRoot:
     via HTMLVisitor and the entry-point-based renderer lookup.
     """
 
-    def test_blank_node_becomes_html_root(self) -> None:
+    def test_blank_node_becomes_html_root(
+        self, plugin_settings: PluginSettings
+    ) -> None:
         """A document containing a BlankNode becomes an HTMLRoot."""
         blank = BlankNode()
         document = Document(blank)
         context = Context({Document: document})
 
-        transform = HTMLTransform(_EMPTY_PLUGIN_SETTINGS)
+        transform = HTMLTransform(plugin_settings)
         transform.transform(context)
 
         assert isinstance(document.root, HTMLRoot)
 
-    def test_list_with_blanks_becomes_html_root(self) -> None:
+    def test_list_with_blanks_becomes_html_root(
+        self, plugin_settings: PluginSettings
+    ) -> None:
         """A document with a ListNode of BlankNodes becomes an HTMLRoot."""
         tree = ListNode([BlankNode(), BlankNode(), BlankNode()])
         document = Document(tree)
         context = Context({Document: document})
 
-        transform = HTMLTransform(_EMPTY_PLUGIN_SETTINGS)
+        transform = HTMLTransform(plugin_settings)
         transform.transform(context)
 
         assert isinstance(document.root, HTMLRoot)
 
-    def test_definition_with_blank_becomes_html_root(self) -> None:
+    def test_definition_with_blank_becomes_html_root(
+        self, plugin_settings: PluginSettings
+    ) -> None:
         """
         A document containing a Definition wrapping a BlankNode is
         transformed into an HTMLRoot.
@@ -132,17 +123,19 @@ class TestHTMLTransformProducesHTMLRoot:
         context = Context({Document: document, Source: source, Index: index})
 
         # First apply IndexTransform to assign specifiers.
-        index_transform = IndexTransform(_EMPTY_PLUGIN_SETTINGS)
+        index_transform = IndexTransform(plugin_settings)
         index_transform.transform(context)
         assert definition.specifier == 0
 
         # Then apply HTMLTransform.
-        html_transform = HTMLTransform(_EMPTY_PLUGIN_SETTINGS)
+        html_transform = HTMLTransform(plugin_settings)
         html_transform.transform(context)
 
         assert isinstance(document.root, HTMLRoot)
 
-    def test_transform_skips_already_output_node(self) -> None:
+    def test_transform_skips_already_output_node(
+        self, plugin_settings: PluginSettings
+    ) -> None:
         """
         If the document root is already an OutputNode (e.g. HTMLRoot),
         HTMLTransform leaves it unchanged.
@@ -153,7 +146,7 @@ class TestHTMLTransformProducesHTMLRoot:
         document = Document(existing_root)
         context = Context({Document: document})
 
-        transform = HTMLTransform(_EMPTY_PLUGIN_SETTINGS)
+        transform = HTMLTransform(plugin_settings)
         transform.transform(context)
 
         assert document.root is existing_root
@@ -539,7 +532,9 @@ class TestFullPipelineHTMLOutput:
     structural and content elements.
     """
 
-    def test_definition_to_html_output(self) -> None:
+    def test_definition_to_html_output(
+        self, plugin_settings: PluginSettings
+    ) -> None:
         """
         Full pipeline: Definition with BlankNode -> IndexTransform ->
         HTMLTransform -> HTMLRoot.output() -> HTML string.
@@ -557,12 +552,12 @@ class TestFullPipelineHTMLOutput:
         context = Context({Document: document, Source: source, Index: index})
 
         # Step 1: IndexTransform assigns specifiers.
-        index_transform = IndexTransform(_EMPTY_PLUGIN_SETTINGS)
+        index_transform = IndexTransform(plugin_settings)
         index_transform.transform(context)
         assert definition.specifier == 0
 
         # Step 2: HTMLTransform converts the tree to HTML.
-        html_transform = HTMLTransform(_EMPTY_PLUGIN_SETTINGS)
+        html_transform = HTMLTransform(plugin_settings)
         html_transform.transform(context)
         root = document.root
         assert isinstance(root, HTMLRoot)

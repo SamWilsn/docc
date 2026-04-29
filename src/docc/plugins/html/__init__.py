@@ -29,6 +29,7 @@ from typing import (
     Dict,
     Final,
     FrozenSet,
+    Generic,
     Iterable,
     Iterator,
     List,
@@ -36,6 +37,7 @@ from typing import (
     Sequence,
     Tuple,
     Type,
+    TypeVar,
     Union,
 )
 from urllib.parse import urlunsplit
@@ -665,6 +667,41 @@ class _ReferenceExtension(Extension):
                 output += _html_filter(context, reference)
 
         return markupsafe.Markup(output)
+
+
+V = TypeVar("V")
+
+
+class _CollectVisitor(Generic[V], Visitor):
+    _class: Type[V]
+    found: List[V]
+
+    def __init__(self, class_: Type[V]) -> None:
+        self._class = class_
+        self.found = list()
+
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, self._class):
+            self.found.append(node)
+
+        return Visit.TraverseChildren
+
+    def exit(self, node: Node) -> None:
+        pass
+
+
+def render_to_plain(context: Context, node: Node) -> str:
+    """
+    Renders a node to HTML, then extracts the raw text.
+    """
+    visitor = HTMLVisitor(context)
+    node.visit(visitor)
+
+    collect = _CollectVisitor(TextNode)
+    visitor.root.visit(collect)
+
+    raw_text = [n._value for n in collect.found]
+    return "".join(raw_text)
 
 
 def _find_filter(

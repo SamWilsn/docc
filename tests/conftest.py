@@ -112,14 +112,12 @@ class ReferenceChecker(Visitor):
     """Helper visitor to check for Reference nodes in a tree."""
 
     def __init__(self) -> None:
-        self.found = False
-        self.count = 0
+        self.found: int = 0
 
     @override
     def enter(self, node: Node) -> Visit:
         if isinstance(node, Reference):
-            self.found = True
-            self.count += 1
+            self.found += 1
         return Visit.TraverseChildren
 
     @override

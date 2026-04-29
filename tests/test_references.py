@@ -106,9 +106,16 @@ class TestLocation:
 
     def test_location_is_hashable(self) -> None:
         source = MockSource()
-        location = Location(source=source, identifier="test", specifier=0)
-        location_set = {location}
-        assert location in location_set
+        location_1 = Location(source=source, identifier="test", specifier=0)
+        location_2 = Location(source=source, identifier="test", specifier=0)
+        location_3 = Location(source=source, identifier="test", specifier=1)
+        location_4 = Location(source=source, identifier="missing", specifier=1)
+        location_set = {location_1, location_2, location_3}
+        assert location_1 in location_set
+        assert location_2 in location_set
+        assert location_3 in location_set
+        assert location_4 not in location_set
+        assert len(location_set) == 2
 
 
 class TestIndex:

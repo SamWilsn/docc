@@ -32,8 +32,6 @@ from docc.plugins.mistletoe import (
     _render_emphasis,
     _render_escape_sequence,
     _render_heading,
-    _render_html_block,
-    _render_html_span,
     _render_image,
     _render_inline_code,
     _render_line_break,
@@ -146,9 +144,14 @@ def test_render_strikethrough(context: Context, html_root: HTMLRoot) -> None:
 def test_render_escape_sequence_raises(
     context: Context, html_root: HTMLRoot
 ) -> None:
-    node = MarkdownNode(md.Document("test"))
+    node = MarkdownNode(md.Document("\\\\*"))
+    paragraph = next(iter(node.children))
+    escape = next(iter(paragraph.children))
+    assert isinstance(escape, MarkdownNode)
+    assert isinstance(escape.token, md.span_token.EscapeSequence)
+
     with pytest.raises(NotImplementedError):
-        _render_escape_sequence(context, html_root, node)
+        _render_escape_sequence(context, html_root, escape)
 
 
 # ---------------------------------------------------------------------------
@@ -157,11 +160,8 @@ def test_render_escape_sequence_raises(
 
 
 def test_render_image(context: Context, html_root: HTMLRoot) -> None:
-    mock_token = MagicMock(spec=spans.Image)
-    mock_token.src = "image.png"
-    mock_token.content = "alt text"
-    mock_token.title = ""
-    node = MarkdownNode(mock_token)
+    doc = md.Document("![alt text](image.png)")
+    node = MarkdownNode(doc.children[0].children[0])
 
     result = _render_image(context, html_root, node)
 
@@ -177,11 +177,8 @@ def test_render_image(context: Context, html_root: HTMLRoot) -> None:
 def test_render_image_with_title(
     context: Context, html_root: HTMLRoot
 ) -> None:
-    mock_token = MagicMock(spec=spans.Image)
-    mock_token.src = "image.png"
-    mock_token.content = "alt"
-    mock_token.title = "title"
-    node = MarkdownNode(mock_token)
+    doc = md.Document('![alt text](image.png "title")')
+    node = MarkdownNode(doc.children[0].children[0])
 
     _render_image(context, html_root, node)
 
@@ -369,41 +366,6 @@ def test_render_line_break_soft(context: Context, html_root: HTMLRoot) -> None:
 
 
 # ---------------------------------------------------------------------------
-# HTML span / block
-# ---------------------------------------------------------------------------
-
-
-def test_render_html_span(context: Context, html_root: HTMLRoot) -> None:
-    mock_token = MagicMock(spec=spans.HTMLSpan)
-    mock_token.content = "<em>hello</em>"
-    node = MarkdownNode(mock_token)
-
-    result = _render_html_span(context, html_root, node)
-
-    assert result is None
-    children = list(html_root.children)
-    assert len(children) == 1
-    em_tag = children[0]
-    assert isinstance(em_tag, HTMLTag)
-    assert em_tag.tag_name == "em"
-
-
-def test_render_html_block(context: Context, html_root: HTMLRoot) -> None:
-    mock_token = MagicMock(spec=blocks.HTMLBlock)
-    mock_token.content = "<div>block content</div>"
-    node = MarkdownNode(mock_token)
-
-    result = _render_html_block(context, html_root, node)
-
-    assert result is None
-    children = list(html_root.children)
-    assert len(children) == 1
-    div_tag = children[0]
-    assert isinstance(div_tag, HTMLTag)
-    assert div_tag.tag_name == "div"
-
-
-# ---------------------------------------------------------------------------
 # List / list item
 # ---------------------------------------------------------------------------
 
@@ -516,12 +478,20 @@ def test_render_table_cell_center(
     assert result.attributes.get("align") == "center"
 
 
+def test_render_table_cell_left(context: Context, html_root: HTMLRoot) -> None:
+    doc = md.Document("| A |\n|:--- |\n| 1 |")
+    node = MarkdownNode(doc.children[0].children[0].children[0])
+    result = _render_table_cell(context, html_root, node)
+
+    assert isinstance(result, HTMLTag)
+    assert result.attributes.get("align") == "left"
+
+
 def test_render_table_cell_right(
     context: Context, html_root: HTMLRoot
 ) -> None:
-    mock_token = MagicMock(spec=blocks.TableCell)
-    mock_token.align = 2
-    node = MarkdownNode(mock_token)
+    doc = md.Document("| A |\n| ---:|\n| 1 |")
+    node = MarkdownNode(doc.children[0].children[0].children[0])
     result = _render_table_cell(context, html_root, node)
 
     assert isinstance(result, HTMLTag)

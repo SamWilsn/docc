@@ -117,6 +117,7 @@ def test_markdown_search_emphasis() -> None:
 def test_markdown_search_code_block() -> None:
     node = MarkdownNode(md.Document("```python\ncode\n```"))
     assert "code" in node.to_search()
+    assert "python" not in node.to_search()
 
 
 def test_markdown_search_list_items() -> None:
