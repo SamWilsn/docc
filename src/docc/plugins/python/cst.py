@@ -85,15 +85,6 @@ class PythonDiscover(Discover):
     excludes all children.
     """
 
-    _strip_roots: Final[Dict[str, bool]]
-    """
-    Whether each discovery root's name should be stripped from output paths.
-
-    A root is stripped when it is just a wrapper directory (e.g. ``src/``)
-    rather than a package itself: its name belongs to the source tree, not
-    the package being documented.
-    """
-
     settings: PluginSettings
 
     def _python_source(
@@ -101,12 +92,11 @@ class PythonDiscover(Discover):
         root_path: PurePath,
         relative_path: PurePath,
         absolute_path: PurePath,
+        *,
+        strip_root: bool = False,
     ) -> "PythonSource":
         return PythonSource(
-            root_path,
-            relative_path,
-            absolute_path,
-            strip_root=self._strip_roots[str(root_path)],
+            root_path, relative_path, absolute_path, strip_root=strip_root
         )
 
     def __init__(self, config: PluginSettings) -> None:
@@ -133,21 +123,6 @@ class PythonDiscover(Discover):
 
         self.excluded_paths = [PurePath(p) for p in excluded_paths]
 
-        self._strip_roots = {
-            root: not self._root_is_package(root) for root in self.paths
-        }
-
-    @staticmethod
-    def _root_is_package(root_text: str) -> bool:
-        """
-        Return whether `root_text` is a regular package directory.
-
-        A discovery root that is itself a package (contains ``__init__.py``)
-        keeps its name in the documentation URL hierarchy. A wrapper
-        directory like ``src/`` does not, and gets stripped.
-        """
-        return os.path.isfile(os.path.join(root_text, "__init__.py"))
-
     def discover(self, known: FrozenSet[T]) -> Iterator[Source]:
         """
         Find sources.
@@ -158,6 +133,12 @@ class PythonDiscover(Discover):
 
         for root_text, absolute_texts in globbed:
             root_path = PurePath(root_text)
+            # Strip the root from output paths when it's a wrapper (e.g.
+            # ``src/``) rather than a package: its name belongs to the
+            # source tree, not the package being documented.
+            strip_root = not os.path.isfile(
+                os.path.join(root_text, "__init__.py")
+            )
             for absolute_text in absolute_texts:
                 absolute_path = PurePath(absolute_text)
                 relative_path = self.settings.unresolve_path(absolute_path)
@@ -165,7 +146,10 @@ class PythonDiscover(Discover):
                 parents = relative_path.parents
                 if not any(p in parents for p in self.excluded_paths):
                     yield self._python_source(
-                        root_path, relative_path, absolute_path
+                        root_path,
+                        relative_path,
+                        absolute_path,
+                        strip_root=strip_root,
                     )
 
 
@@ -210,14 +194,12 @@ class PythonSource(TextSource, Listable):
         When the discovery root is a wrapper directory (e.g. ``src/``), it
         is stripped so that URLs start at the top-level package.
         """
-        if self._strip_root:
-            base = self.absolute_path.relative_to(self.root_path)
-        else:
-            base = self._relative_path
-
-        if self._is_init():
-            return base.with_name("index")
-        return base
+        base = (
+            self.absolute_path.relative_to(self.root_path)
+            if self._strip_root
+            else self._relative_path
+        )
+        return base.with_name("index") if self._is_init() else base
 
     def open(self) -> TextIO:
         """

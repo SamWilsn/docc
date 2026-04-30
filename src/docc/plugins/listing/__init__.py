@@ -52,31 +52,25 @@ from docc.transform import Transform
 
 def _hierarchy_path(source: Source) -> PurePath:
     """
-    Return the position of `source` in the navigation hierarchy.
+    Return the navigation-tree position of `source`.
 
     Index sources (synthetic listings, ``__init__.py``) occupy the
     directory they index; everything else occupies its `output_path`.
     """
-    index_dir = Listable._index_dir(source)
-    if index_dir is not None:
-        return index_dir
-    return source.output_path
+    return Listable._index_dir(source) or source.output_path
 
 
 def _display_path(source: Source) -> PurePath:
     """
-    Return the path used to display `source` in a listing as a file entry.
+    Return the path used to display `source` as a file entry.
 
-    For a file-backed index source (e.g. ``__init__.py``), this is the
-    directory it indexes joined with the file's original name, so that
-    URL-relative listings show the source filename without any wrapper
-    prefix that may have been stripped from `output_path`. For other
-    sources it is just the `output_path`.
+    For a file-backed index like ``__init__.py``, this rejoins the
+    original filename to its URL-relative directory so any wrapper
+    prefix stripped from `output_path` is not shown.
     """
-    relative = source.relative_path
     index_dir = Listable._index_dir(source)
-    if index_dir is not None and relative is not None:
-        return index_dir / relative.name
+    if index_dir and source.relative_path:
+        return index_dir / source.relative_path.name
     return source.output_path
 
 
@@ -219,12 +213,12 @@ class Listing:
         """
         All sources with the same parent as the given source.
 
-        An index source like ``__init__.py`` is treated as a member of the
-        directory it indexes, so its siblings are the other entries in
-        that directory rather than entries one level higher in the tree.
+        An index source like ``__init__.py`` is treated as a member of
+        the directory it indexes, so its siblings are that directory's
+        entries rather than entries one level higher in the tree.
         """
         if Listable._index_dir(source) is not None:
-            return self.sources[_hierarchy_path(source)]
+            return self.descendants(source)
         return self.sources[_hierarchy_path(source).parent]
 
 
