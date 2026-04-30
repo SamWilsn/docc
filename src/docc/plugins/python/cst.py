@@ -92,8 +92,12 @@ class PythonDiscover(Discover):
         root_path: PurePath,
         relative_path: PurePath,
         absolute_path: PurePath,
+        *,
+        strip_root: bool = False,
     ) -> "PythonSource":
-        return PythonSource(root_path, relative_path, absolute_path)
+        return PythonSource(
+            root_path, relative_path, absolute_path, strip_root=strip_root
+        )
 
     def __init__(self, config: PluginSettings) -> None:
         self.settings = config
@@ -129,6 +133,12 @@ class PythonDiscover(Discover):
 
         for root_text, absolute_texts in globbed:
             root_path = PurePath(root_text)
+            # Strip the root from output paths when it's a wrapper (e.g.
+            # ``src/``) rather than a package: its name belongs to the
+            # source tree, not the package being documented.
+            strip_root = not os.path.isfile(
+                os.path.join(root_text, "__init__.py")
+            )
             for absolute_text in absolute_texts:
                 absolute_path = PurePath(absolute_text)
                 relative_path = self.settings.unresolve_path(absolute_path)
@@ -136,7 +146,10 @@ class PythonDiscover(Discover):
                 parents = relative_path.parents
                 if not any(p in parents for p in self.excluded_paths):
                     yield self._python_source(
-                        root_path, relative_path, absolute_path
+                        root_path,
+                        relative_path,
+                        absolute_path,
+                        strip_root=strip_root,
                     )
 
 
@@ -148,16 +161,20 @@ class PythonSource(TextSource, Listable):
     root_path: Final[PurePath]
     absolute_path: Final[PurePath]
     _relative_path: Final[PurePath]
+    _strip_root: Final[bool]
 
     def __init__(
         self,
         root_path: PurePath,
         relative_path: PurePath,
         absolute_path: PurePath,
+        *,
+        strip_root: bool = False,
     ) -> None:
         self.root_path = root_path
         self._relative_path = relative_path
         self.absolute_path = absolute_path
+        self._strip_root = strip_root
 
     def _is_init(self) -> bool:
         return self._relative_path.name == "__init__.py"
@@ -173,11 +190,16 @@ class PythonSource(TextSource, Listable):
     def output_path(self) -> PurePath:
         """
         Where to put the output derived from this source.
-        """
-        if self._is_init():
-            return self._relative_path.with_name("index")
 
-        return self._relative_path
+        When the discovery root is a wrapper directory (e.g. ``src/``), it
+        is stripped so that URLs start at the top-level package.
+        """
+        base = (
+            self.absolute_path.relative_to(self.root_path)
+            if self._strip_root
+            else self._relative_path
+        )
+        return base.with_name("index") if self._is_init() else base
 
     def open(self) -> TextIO:
         """

@@ -50,6 +50,30 @@ from docc.source import Source
 from docc.transform import Transform
 
 
+def _hierarchy_path(source: Source) -> PurePath:
+    """
+    Return the navigation-tree position of `source`.
+
+    Index sources (synthetic listings, ``__init__.py``) occupy the
+    directory they index; everything else occupies its `output_path`.
+    """
+    return Listable._index_dir(source) or source.output_path
+
+
+def _display_path(source: Source) -> PurePath:
+    """
+    Return the path used to display `source` as a file entry.
+
+    For a file-backed index like ``__init__.py``, this rejoins the
+    original filename to its URL-relative directory so any wrapper
+    prefix stripped from `output_path` is not shown.
+    """
+    index_dir = Listable._index_dir(source)
+    if index_dir and source.relative_path:
+        return index_dir / source.relative_path.name
+    return source.output_path
+
+
 class Listable:
     """
     Mixin to change visibility of a Source in a directory listing.
@@ -62,8 +86,11 @@ class Listable:
         if isinstance(thing, Listable):
             return thing.listing_order_key()
         elif isinstance(thing, Source):
-            path = thing.relative_path or thing.output_path
-            return (Listable._index_dir(thing) is None, path, None)
+            return (
+                Listable._index_dir(thing) is None,
+                _hierarchy_path(thing),
+                None,
+            )
         return (True, None, thing)
 
     @staticmethod
@@ -107,8 +134,7 @@ class Listable:
         Key to use when sorting instances while rendering.
         """
         if isinstance(self, Source):
-            path = self.relative_path or self.output_path
-            return (self.index_dir is None, path, None)
+            return (self.index_dir is None, _hierarchy_path(self), None)
         return (True, None, self)
 
 
@@ -140,11 +166,7 @@ class ListingDiscover(Discover):
             if not Listable._show_source(source):
                 continue
 
-            path = source.relative_path
-            if not path:
-                path = source.output_path
-
-            for parent in path.parents:
+            for parent in _hierarchy_path(source).parents:
                 try:
                     listing = listings[parent]
                 except KeyError:
@@ -175,27 +197,29 @@ class Listing:
         """
         Register a source.
         """
-        index_dir = Listable._index_dir(source)
-        if index_dir is None:
-            path = source.relative_path or source.output_path
-            self.sources[path.parent].add(source)
-        else:
-            self.sources[index_dir].add(source)
-            self.sources[index_dir.parent].add(source)
+        hierarchy = _hierarchy_path(source)
+        self.sources[hierarchy.parent].add(source)
+        if Listable._index_dir(source) is not None:
+            # Index sources also appear as the index of their own directory.
+            self.sources[hierarchy].add(source)
 
     def descendants(self, source: Source) -> Iterable[Source]:
         """
         All children of the given source.
         """
-        source_path = source.relative_path or source.output_path
-        return self.sources[source_path]
+        return self.sources[_hierarchy_path(source)]
 
     def siblings(self, source: Source) -> Iterable[Source]:
         """
         All sources with the same parent as the given source.
+
+        An index source like ``__init__.py`` is treated as a member of
+        the directory it indexes, so its siblings are that directory's
+        entries rather than entries one level higher in the tree.
         """
-        source_path = source.relative_path or source.output_path
-        return self.sources[source_path.parent]
+        if Listable._index_dir(source) is not None:
+            return self.descendants(source)
+        return self.sources[_hierarchy_path(source).parent]
 
 
 class ListingContext(Provider[Listing]):
@@ -397,7 +421,8 @@ def render_html(
         ):
             # Regular source, or an index source (like `__init__.py`) appearing
             # in its own listing. Show as `<name>`.
-            path = relative.name if node.leaf else str(relative)
+            display = _display_path(source)
+            path = display.name if node.leaf else str(display)
         else:
             # Synthetic listing, or a file-based index (like `__init__.py`)
             # appearing in its parent directory's listing. Show as `<dir>/`.
