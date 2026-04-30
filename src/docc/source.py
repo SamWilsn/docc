@@ -91,6 +91,9 @@ class StringSource(TextSource):
     A Source that reads text snippets from a `str`.
     """
 
+    _output_path: Final[PurePath]
+    _relative_path: Final[Optional[PurePath]]
+
     def __init__(
         self,
         text: str,
@@ -99,8 +102,8 @@ class StringSource(TextSource):
     ) -> None:
         self._lines: Final[Sequence[str]] = text.split("\n")
         self._text: Final[str] = text
-        self.output_path: Final[PurePath] = output_path
-        self.relative_path: Final[Optional[PurePath]] = relative_path
+        self._output_path = output_path
+        self._relative_path = relative_path
 
     @override
     def open(self) -> TextIO:
@@ -115,3 +118,19 @@ class StringSource(TextSource):
         Extract a line of text from the source.
         """
         return self._lines[number - 1]
+
+    @override
+    @property
+    def output_path(self) -> PurePath:
+        """
+        Where to write the output from this Source relative to the output path.
+        """
+        return self._output_path
+
+    @override
+    @property
+    def relative_path(self) -> Optional[PurePath]:
+        """
+        Path to the Source (if one exists) relative to the project root.
+        """
+        return self._relative_path

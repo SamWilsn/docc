@@ -272,9 +272,12 @@ def _render_image(
 ) -> html.RenderResult:
     token = node.token
     assert isinstance(token, spans.Image)
+
+    plain = [html.render_to_plain(context, n) for n in node.children]
+
     attributes = {
         "src": token.src,
-        "alt": token.content,
+        "alt": "".join(plain),
     }
     if token.title:
         attributes["title"] = token.title
@@ -458,7 +461,7 @@ def _render_table_cell(
         align = "left"
     elif token.align == 0:
         align = "center"
-    elif token.align == 2:
+    elif token.align == 1:
         align = "right"
     else:
         raise NotImplementedError(f"table alignment {token.align}")
@@ -485,34 +488,6 @@ def _render_line_break(
     assert isinstance(token, spans.LineBreak)
     tag = html.TextNode("\n") if token.soft else html.HTMLTag("br")
     parent.append(tag)
-    return None
-
-
-def _render_html_span(
-    context: Context,
-    parent: Union[html.HTMLRoot, html.HTMLTag],
-    node: MarkdownNode,
-) -> html.RenderResult:
-    token = node.token
-    assert isinstance(token, spans.HTMLSpan)
-    parser = html.HTMLParser(context)
-    parser.feed(token.content)
-    for child in parser.root.children:
-        parent.append(child)
-    return None
-
-
-def _render_html_block(
-    context: Context,
-    parent: Union[html.HTMLRoot, html.HTMLTag],
-    node: MarkdownNode,
-) -> html.RenderResult:
-    token = node.token
-    assert isinstance(token, blocks.HTMLBlock)
-    parser = html.HTMLParser(context)
-    parser.feed(token.content)
-    for child in parser.root.children:
-        parent.append(child)
     return None
 
 
@@ -558,8 +533,6 @@ _RENDERERS: Mapping[str, _RENDER_FUNC] = {
     "ThematicBreak": _render_thematic_break,
     "LineBreak": _render_line_break,
     "Document": _render_document,
-    "HTMLBlock": _render_html_block,
-    "HTMLSpan": _render_html_span,
 }
 
 

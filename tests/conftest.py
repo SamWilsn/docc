@@ -1,4 +1,4 @@
-# Copyright (C) 2025 Ethereum Foundation
+# Copyright (C) 2025-2026 Ethereum Foundation
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ from typing_extensions import override
 
 from docc.context import Context
 from docc.document import Document, Node, Visit, Visitor
+from docc.plugins.references import Reference
 from docc.settings import PluginSettings, Settings
 
 
@@ -55,7 +56,7 @@ def _assert_in(
         haystack = haystack.root
     visitor = ContainsVisitor(matcher)
     haystack.visit(visitor)
-    assert visitor.found
+    assert visitor.found, f"No matching node found in tree: {haystack!r}"
 
 
 def _assert_not_in(
@@ -105,3 +106,20 @@ def _make_context(root: Node) -> Context:
 @pytest.fixture
 def make_context() -> Callable[[Node], Context]:
     return _make_context
+
+
+class ReferenceChecker(Visitor):
+    """Helper visitor to check for Reference nodes in a tree."""
+
+    def __init__(self) -> None:
+        self.found: int = 0
+
+    @override
+    def enter(self, node: Node) -> Visit:
+        if isinstance(node, Reference):
+            self.found += 1
+        return Visit.TraverseChildren
+
+    @override
+    def exit(self, node: Node) -> None:
+        pass
