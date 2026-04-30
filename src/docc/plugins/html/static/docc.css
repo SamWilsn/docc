@@ -16,6 +16,9 @@
 
     --comment-color: gray;
 
+    --tooltip-color: #177cb9;
+    --hi-link-border-color: rgba(0, 0, 0, 0.3);
+
     --code-max-width: 100%;
 
     --grid-maxWidth: 100%;
@@ -30,6 +33,14 @@
 pre {
     margin: 0;
     padding: 0;
+}
+
+input:not([type=checkbox], [type=radio], [type=submit], [type=color], [type=button], [type=reset]),
+select,
+textarea {
+    /* Explicitly style these so we can override them in dark mode */
+    background-color: var(--bg-color);
+    color: var(--font-color);
 }
 
 a > code {
@@ -180,7 +191,7 @@ details[open] > summary::after {
 }
 
 .tooltip > :not(:first-child) {
-    color: #177cb9;
+    color: var(--tooltip-color);
 }
 
 .tooltip-content {
@@ -248,7 +259,7 @@ details[open] > summary::after {
 /* Theme */
 .hi a {
     text-decoration: none;
-    border-bottom: 1px dotted rgba(0, 0, 0, 0.3);
+    border-bottom: 1px dotted var(--hi-link-border-color);
 }
 
 .hi-function-def,
@@ -333,4 +344,24 @@ details[open] > summary::after {
 .header-anchor:hover .link-logo,
 .header-anchor:focus-within .link-logo {
     visibility: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        /* chota */
+        --bg-color: #000;
+        --bg-secondary-color: #131316;
+        --font-color: #f5f5f5;
+        --color-grey: #ccc;
+        --color-darkGrey: #777;
+
+        /* docc */
+        --bg-highlight-color: #5c4d10;
+        --default-color: #f5f5f5;
+        --keyword-color: #7aa2f7;
+        --literal-color: #5eead4;
+        --name-color: #f7768e;
+        --tooltip-color: #7aa2f7;
+        --hi-link-border-color: rgba(255, 255, 255, 0.3);
+    }
 }
