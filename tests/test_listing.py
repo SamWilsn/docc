@@ -92,6 +92,9 @@ def test_listing_descendants_and_siblings() -> None:
     assert set(listing.descendants(init_src)) == {init_src, mod_src}
     # Siblings of `mod.py` include the `__init__.py` and itself.
     assert set(listing.siblings(mod_src)) == {init_src, mod_src}
+    # An `__init__.py` is treated as a member of its own package, so its
+    # siblings are the package's contents (matching what `mod.py` sees).
+    assert set(listing.siblings(init_src)) == {init_src, mod_src}
 
 
 def _empty_discover() -> ListingDiscover:

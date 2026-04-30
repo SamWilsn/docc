@@ -218,7 +218,13 @@ class Listing:
     def siblings(self, source: Source) -> Iterable[Source]:
         """
         All sources with the same parent as the given source.
+
+        An index source like ``__init__.py`` is treated as a member of the
+        directory it indexes, so its siblings are the other entries in
+        that directory rather than entries one level higher in the tree.
         """
+        if Listable._index_dir(source) is not None:
+            return self.sources[_hierarchy_path(source)]
         return self.sources[_hierarchy_path(source).parent]
 
 
