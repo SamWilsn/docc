@@ -50,7 +50,7 @@ from docc.discover import Discover, T
 from docc.document import BlankNode, Document, ListNode, Node, Visit, Visitor
 from docc.plugins.listing import Listable, ListingNode
 from docc.plugins.references import Definition, Reference
-from docc.plugins.verbatim import Fragment, Pos, Verbatim
+from docc.plugins.verbatim import Fragment, Hidden, Pos, Verbatim
 from docc.settings import PluginSettings
 from docc.source import Source, TextSource
 from docc.transform import Transform
@@ -649,7 +649,11 @@ class _TransformVisitor(Visitor):
         source = node.source
         if isinstance(source, TextSource):
             body = node.find_child(cst_node.body)
-            function_def.body = _VerbatimTransform.apply(source, body)
+            hide: FrozenSet[cst.CSTNode] = frozenset()
+            docstring_cst = _docstring_statement(cst_node.body)
+            if docstring_cst is not None:
+                hide = frozenset([docstring_cst])
+            function_def.body = _VerbatimTransform.apply(source, body, hide)
 
             assert isinstance(function_def.decorators, ListNode)
             decorators = function_def.decorators.children
@@ -1176,10 +1180,15 @@ class _NameTransformVisitor(Visitor):
 class _VerbatimTransform(Visitor):
     root: Optional[Node]
     stack: Final[List[Node]]
+    hide: Final[FrozenSet[cst.CSTNode]]
 
     @staticmethod
-    def apply(source: TextSource, node: Node) -> Node:
-        transform = _VerbatimTransform()
+    def apply(
+        source: TextSource,
+        node: Node,
+        hide: FrozenSet[cst.CSTNode] = frozenset(),
+    ) -> Node:
+        transform = _VerbatimTransform(hide)
 
         node.visit(transform)
 
@@ -1188,9 +1197,10 @@ class _VerbatimTransform(Visitor):
         verbatim.append(transform.root)
         return verbatim
 
-    def __init__(self) -> None:
+    def __init__(self, hide: FrozenSet[cst.CSTNode] = frozenset()) -> None:
         self.stack = []
         self.root = None
+        self.hide = hide
 
     def enter(self, node: Node) -> Visit:
         if self.root is None:
@@ -1212,7 +1222,9 @@ class _VerbatimTransform(Visitor):
         new: Optional[Node] = None
         children = [c for c in node.children if not isinstance(c, BlankNode)]
 
-        if isinstance(node.cst_node, WHITESPACE):
+        if node.cst_node in self.hide:
+            new = Hidden(start=node.start, end=node.end)
+        elif isinstance(node.cst_node, WHITESPACE):
             if not children:
                 new = BlankNode()
             elif len(children) == 1:
@@ -1221,7 +1233,10 @@ class _VerbatimTransform(Visitor):
         if new is None:
             start = node.start
             for child in children:
-                if isinstance(child, Fragment) and child.start < start:
+                if (
+                    isinstance(child, (Fragment, Hidden))
+                    and child.start < start
+                ):
                     start = child.start
 
             name = dasherize(underscore(node.cst_node.__class__.__name__))
@@ -1240,3 +1255,34 @@ class _VerbatimTransform(Visitor):
         else:
             assert self.root == node
             self.root = new
+
+
+def _docstring_statement(
+    body: cst.BaseSuite,
+) -> Optional[cst.SimpleStatementLine]:
+    """
+    If `body` starts with a docstring, return the outermost
+    `SimpleStatementLine` that contains it. Otherwise return `None`.
+
+    Mirrors the descent logic in
+    `libcst._nodes.statement.get_docstring_impl`, but returns the wrapping
+    statement so its source positions can be elided from a `Verbatim` block.
+    """
+    expr: cst.CSTNode = body
+    statement: Optional[cst.SimpleStatementLine] = None
+    while isinstance(expr, (cst.BaseSuite, cst.SimpleStatementLine)):
+        if statement is None and isinstance(expr, cst.SimpleStatementLine):
+            statement = expr
+        if not expr.body:
+            return None
+        expr = expr.body[0]
+    if statement is None:
+        return None
+    if not isinstance(expr, cst.Expr):
+        return None
+    val = expr.value
+    if not isinstance(val, (cst.SimpleString, cst.ConcatenatedString)):
+        return None
+    if isinstance(val.evaluated_value, bytes):
+        return None
+    return statement

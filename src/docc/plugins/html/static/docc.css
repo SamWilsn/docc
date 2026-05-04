@@ -322,6 +322,12 @@ details[open] > summary::after {
     font-weight: bold;
 }
 
+.hi-hidden {
+    color: var(--comment-color);
+    font-style: oblique;
+    font-size: 80%;
+}
+
 .header-anchor a {
     color: inherit;
     text-decoration: none;
