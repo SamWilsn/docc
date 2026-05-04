@@ -248,6 +248,42 @@ class Fragment(VerbatimNode):
         return f"Fragment({self.start}, {self.end}, {self.highlights!r})"
 
 
+class Hidden(Node):
+    """
+    A range of text from a `Source` that should be omitted from the output.
+
+    `Hidden` nodes appear inside `Verbatim` blocks just like `Fragment` nodes,
+    but instead of contributing text to the output they advance past the
+    indicated range without emitting anything.
+    """
+
+    start: Pos
+    end: Pos
+
+    def __init__(self, start: Pos, end: Pos) -> None:
+        self.start = start
+        self.end = end
+
+    @property
+    def children(self) -> Tuple[()]:
+        """
+        Child nodes belonging to this node.
+        """
+        return ()
+
+    def replace_child(self, old: Node, new: Node) -> None:
+        """
+        Replace the old child with a new one.
+        """
+        raise TypeError()
+
+    def __repr__(self) -> str:
+        """
+        Textual representation of this instance.
+        """
+        return f"Hidden({self.start}, {self.end})"
+
+
 @dataclass
 class _VerbatimContext:
     node: Verbatim
@@ -267,7 +303,7 @@ class _BoundsVisitor(Visitor):
         self.end = None
 
     def enter(self, node: Node) -> Visit:
-        if isinstance(node, Fragment):
+        if isinstance(node, (Fragment, Hidden)):
             if self.start is None or node.start < self.start:
                 self.start = node.start
 
@@ -411,6 +447,32 @@ class VerbatimVisitor(Visitor):
 
         self._depth = depth - 1
 
+    def _enter_hidden(self, node: Hidden) -> Visit:
+        depth = self._depth
+
+        if depth is None or depth < 1:
+            raise Exception("Hidden nodes must appear inside Verbatim")
+
+        verbatim = self._verbatim
+        assert verbatim is not None
+
+        self._copy(node.start.line, node.start)
+
+        self.begin_highlight(["hidden"])
+        self.text("<snip>")
+        self.end_highlight()
+
+        if verbatim.written is None:
+            verbatim.written = _Pos(line=node.end.line, column=node.end.column)
+        else:
+            verbatim.written.line = node.end.line
+            verbatim.written.column = node.end.column
+
+        return Visit.SkipChildren
+
+    def _exit_hidden(self, node: Hidden) -> None:
+        pass
+
     def _enter_verbatim(self, node: Verbatim) -> Visit:
         if self._depth is not None:
             raise Exception("Verbatim nodes cannot be nested")
@@ -431,6 +493,8 @@ class VerbatimVisitor(Visitor):
         """
         if isinstance(node, Fragment):
             return self._enter_fragment(node)
+        elif isinstance(node, Hidden):
+            return self._enter_hidden(node)
         elif isinstance(node, Verbatim):
             return self._enter_verbatim(node)
         else:
@@ -447,6 +511,8 @@ class VerbatimVisitor(Visitor):
         """
         if isinstance(node, Fragment):
             return self._exit_fragment(node)
+        elif isinstance(node, Hidden):
+            return self._exit_hidden(node)
         elif isinstance(node, Verbatim):
             return self._exit_verbatim(node)
         else:
