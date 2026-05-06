@@ -73,3 +73,5 @@ typeddict
 typeshed
 unresolve
 urlunsplit
+isfile
+tmp
