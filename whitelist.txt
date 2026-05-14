@@ -40,6 +40,7 @@ matcher
 merchantability
 metaclass
 modulefinder
+orelse
 param
 params
 pathname2url
