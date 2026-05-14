@@ -873,6 +873,15 @@ class _TransformVisitor(Visitor):
             visit = self.enter_assign(node, cst_node)
         elif isinstance(cst_node, cst.SimpleStatementLine):
             visit = Visit.TraverseChildren
+        elif isinstance(cst_node, cst.IndentedBlock):
+            visit = Visit.TraverseChildren
+        elif isinstance(cst_node, cst.If):
+            node.find_child(cst_node.body).visit(self)
+            if cst_node.orelse is not None:
+                node.find_child(cst_node.orelse).visit(self)
+            visit = Visit.SkipChildren
+        elif isinstance(cst_node, cst.Else):
+            visit = Visit.TraverseChildren
         elif isinstance(cst_node, cst.Expr):
             visit = Visit.SkipChildren
         elif isinstance(cst_node, (cst.Import, cst.ImportFrom)):
@@ -916,6 +925,12 @@ class _TransformVisitor(Visitor):
         elif isinstance(cst_node, cst.Assign):
             self.exit_assign()
         elif isinstance(cst_node, cst.SimpleStatementLine):
+            pass
+        elif isinstance(cst_node, cst.IndentedBlock):
+            pass
+        elif isinstance(cst_node, cst.If):
+            pass
+        elif isinstance(cst_node, cst.Else):
             pass
         elif isinstance(cst_node, cst.Expr):
             pass
